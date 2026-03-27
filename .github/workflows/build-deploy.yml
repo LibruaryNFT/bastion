@@ -31,6 +31,15 @@ jobs:
           solana --version
           rustc --version
 
+      - name: Generate Cargo.lock with compatible deps
+        run: |
+          cd programs/bastion
+          # Pin toml_parser to version that doesn't need edition2024
+          cargo generate-lockfile
+          # Replace any edition2024 deps
+          cargo update toml_parser@1.1.0 --precise 0.23.1 2>/dev/null || true
+          cargo update getrandom@0.4.2 --precise 0.2.15 2>/dev/null || true
+
       - name: Build Program
         run: |
           anchor build
