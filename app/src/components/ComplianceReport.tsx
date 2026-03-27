@@ -370,6 +370,8 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "Identify and verify customer identity using reliable, independent sources before establishing business relationship. Conduct ongoing due diligence including scrutiny of transactions.",
               implementation: "On-chain KycAttestation PDA per wallet with verified flag, provider reference, and expiry timestamp. Transfer Hook rejects transfers from unverified or expired-KYC wallets. Expiry enforcement enables ongoing CDD.",
               status: "enforced",
+              what: "KYC gate + expiry check in smart contract",
+              gap: "KYC provider is sandbox (Onfido integration needed for production)",
             },
             {
               standard: "FATF Recommendation 11",
@@ -377,6 +379,8 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "Maintain transaction records and CDD information for at least 5 years, available to domestic competent authorities on a timely basis.",
               implementation: "15 event types emitted on immutable Solana ledger: KycAttestationCreated, TransferHookTriggered, WithdrawalExecuted, etc. On-chain data persists indefinitely. CDD records maintained off-chain with provider retention policies.",
               status: "enforced",
+              what: "All events emitted on-chain, immutable forever",
+              gap: "Off-chain CDD record retention policy not yet defined",
             },
             {
               standard: "FATF Recommendation 15",
@@ -384,6 +388,8 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "VASPs must be licensed/registered, subject to effective supervision, and apply all relevant FATF preventive measures.",
               implementation: "Token-2022 Transfer Hooks enable programmatic enforcement of VASP obligations — KYC, spending limits, and Travel Rule checks fire on every transfer regardless of the calling application. Regulatory roadmap includes VASP registration (EU MiCA) and MSB licensing.",
               status: "partial",
+              what: "Transfer Hook architecture enforces obligations at token level",
+              gap: "Hook not yet deployed on live Token-2022 mint. VASP licensing is Phase 3",
             },
             {
               standard: "FATF Recommendation 16",
@@ -391,20 +397,26 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "Collect originator and beneficiary information on transfers above USD/EUR 1,000. Full information required for cross-border transfers.",
               implementation: "TravelRuleData PDA stores originator name, address, institution + beneficiary name, address, institution. Configurable threshold: $1,000 (FATF default), CHF 0 (Swiss), EUR 0 (EU TFR 2023/1113). Data submitted on-chain before transfer executes.",
               status: "enforced",
+              what: "TravelRuleData account struct + instruction in deployed program",
+              gap: "No Notabene gateway transmission yet (data collected but not relayed to counterparty VASP)",
             },
             {
               standard: "Swiss AMLA Arts. 3–6",
               title: "Due Diligence Duties",
               requirement: "Art. 3: Verify identity of contracting party. Art. 4: Identify beneficial owner. Art. 5: Repeat verification when doubts arise. Art. 6: Duty to clarify unusual transactions.",
-              implementation: "KYC attestation required before any vault interaction. Attestation includes provider reference, document type, and expiry. Expired KYC blocks all operations. Beneficial owner identification handled by off-chain KYC provider (Onfido).",
-              status: "enforced",
+              implementation: "KYC attestation required before any vault interaction. Attestation includes provider reference, document type, and expiry. Expired KYC blocks all operations. Beneficial owner identification handled by off-chain KYC provider.",
+              status: "partial",
+              what: "On-chain KYC gate enforces Arts. 3 and 5 (verify + re-verify on expiry)",
+              gap: "Art. 4 (beneficial owner) and Art. 6 (unusual tx clarification) require off-chain provider integration",
             },
             {
               standard: "FINMA Guidance 02/2019",
               title: "Payments on the Blockchain",
               requirement: "Travel Rule applies to all transactions between regulated entities regardless of amount (CHF 0 threshold). Transfers to self-hosted wallets require proof of ownership.",
               implementation: "Configurable Travel Rule threshold supports CHF 0 for Swiss compliance. All vault members are KYC-verified, establishing identity chain. TravelRuleData PDA captures originator/beneficiary for every qualifying transfer.",
-              status: "enforced",
+              status: "partial",
+              what: "Architecture supports CHF 0 threshold and KYC identity chain",
+              gap: "Frontend currently defaults to $3K threshold. Self-hosted wallet ownership proof not implemented",
             },
             {
               standard: "FINMA Circular 2023/1",
@@ -412,6 +424,8 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "Implement operational risk management including ICT controls, cyber resilience, segregation of duties, and business continuity.",
               implementation: "Per-role daily spending limits enforced at token level. Multi-sig approval thresholds prevent single-actor risk. Vault pause/unpause for emergency stop. Segregation of duties via four-tier RBAC. All enforced on-chain, not client-side.",
               status: "enforced",
+              what: "Spending limits, multi-sig, RBAC, vault pause — all in deployed program",
+              gap: "Full ICT risk management and business continuity planning are organizational, not code",
             },
             {
               standard: "FINMA Circular 2017/1",
@@ -419,13 +433,17 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "Three lines of defense model. Internal controls must be adequate, with clear responsibility allocation and independent oversight.",
               implementation: "First line: Operators execute within spending limits. Second line: Managers approve withdrawals via multi-sig. Third line: Admin controls membership, thresholds, and vault pause. All actions produce immutable audit trail for independent review.",
               status: "enforced",
+              what: "Three-tier role separation maps directly to three lines of defense",
+              gap: "Independent external audit (actual third line) requires human auditor, not just code",
             },
             {
               standard: "EU MiCA Art. 68(10)",
               title: "CASP Record-Keeping (via RTS)",
               requirement: "CASPs must keep records of all services, activities, orders, and transactions sufficient for supervisory authorities. ESMA develops RTS specifying format and retention.",
               implementation: "15 event types on-chain: vault creation, KYC verification, deposits, withdrawal requests/approvals/executions, Travel Rule submissions, Transfer Hook triggers. Immutable, queryable via Solana RPC, retained indefinitely.",
-              status: "enforced",
+              status: "partial",
+              what: "Events are comprehensive and immutable on-chain",
+              gap: "ESMA RTS format specifications not yet published. Export format may need adaptation",
             },
             {
               standard: "EU DORA (Reg. 2022/2554)",
@@ -433,13 +451,17 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "CASPs must maintain ICT risk management, incident reporting, resilience testing, and third-party risk management frameworks. Effective Jan 17, 2025.",
               implementation: "Vault pause/unpause provides incident response capability. On-chain audit trail enables incident reconstruction. Multi-sig prevents single points of failure. Token-level enforcement via Transfer Hooks means compliance survives application-layer failures.",
               status: "partial",
+              what: "Vault pause + audit trail + multi-sig address resilience",
+              gap: "Full DORA requires incident reporting framework, resilience testing, and third-party risk assessments",
             },
             {
               standard: "ISO 27001 Control A.5.15",
               title: "Access Control",
-              requirement: "Rules to control physical and logical access to information and other associated assets shall be established and implemented based on business and information security requirements.",
+              requirement: "Rules to control physical and logical access to information and other associated assets shall be established and implemented based on business and security requirements.",
               implementation: "Four-tier role system (Admin, Manager, Operator, Viewer) with on-chain enforcement via PDA-based account ownership. Each role has defined capabilities and spending limits. Role changes require Admin approval. Cannot be bypassed at application layer.",
               status: "enforced",
+              what: "RBAC enforced cryptographically on-chain — strongest possible access control",
+              gap: "ISO 27001 is an ISMS framework (93 controls). We address A.5.15 specifically, not full certification",
             },
             {
               standard: "EU GDPR Art. 25 + Art. 5(1)(c)",
@@ -447,6 +469,8 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               requirement: "Implement data protection by design and by default. Personal data must be adequate, relevant, and limited to what is necessary.",
               implementation: "On-chain attestation contains only: wallet address, verified flag, provider reference hash, expiry. No PII stored on-chain. Personal KYC data maintained off-chain with compliance provider under full GDPR controls. On-chain hashes cannot identify individuals without off-chain mapping, which can be deleted per Art. 17 requests.",
               status: "designed",
+              what: "Privacy-by-design architecture — no PII on immutable ledger",
+              gap: "Full GDPR compliance requires DPO appointment, data processing agreements, lawful basis documentation",
             },
           ].map((reg, i) => (
             <div
@@ -481,12 +505,16 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               {expandedMetadata === reg.standard && (
                 <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
                   <div>
-                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--text-tertiary)" }}>Requirement</p>
+                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--text-tertiary)" }}>Regulatory Requirement</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{reg.requirement}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--accent-light)" }}>Bastion Implementation</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--text-primary)" }}>{reg.implementation}</p>
+                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--success)" }}>What Bastion Enforces</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-primary)" }}>{reg.what}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--warning)" }}>Production Gap</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{reg.gap}</p>
                   </div>
                 </div>
               )}
@@ -497,11 +525,11 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
         <div className="mt-4 flex items-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
-            <span>On-Chain Enforced (9)</span>
+            <span>On-Chain Enforced (6)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--warning)]" />
-            <span>Partially Implemented (2)</span>
+            <span>Partially Implemented (5)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
