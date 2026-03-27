@@ -416,7 +416,7 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
               implementation: "Configurable Travel Rule threshold supports CHF 0 for Swiss compliance. All vault members are KYC-verified, establishing identity chain. TravelRuleData PDA captures originator/beneficiary for every qualifying transfer.",
               status: "partial",
               what: "Architecture supports CHF 0 threshold and KYC identity chain",
-              gap: "Frontend currently defaults to $3K threshold. Self-hosted wallet ownership proof not implemented",
+              gap: "Self-hosted wallet ownership proof not yet implemented. CHF 0 threshold requires Travel Rule on all transfers",
             },
             {
               standard: "FINMA Circular 2023/1",

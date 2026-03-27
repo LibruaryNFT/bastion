@@ -84,7 +84,7 @@ export function WithdrawalPanel({ vaultAddress }: WithdrawalPanelProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const needsTravelRule = Number(newRequest.amount) >= 3000;
+  const needsTravelRule = Number(newRequest.amount) >= 1000; // FATF Rec. 16: USD/EUR 1,000. Swiss/EU: configurable to 0
 
 
   // Handle request withdrawal
