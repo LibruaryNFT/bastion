@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("BastNvau1tPerm1ss1onedDeFiVau1tProgram11");
+declare_id!("3rsfme5BC3htuFJwFohPgNiDDmSo43gqZgQNvtKz3HVv");
 
 /// Bastion: Institutional Permissioned DeFi Vault
 ///

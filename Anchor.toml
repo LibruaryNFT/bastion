@@ -3,7 +3,7 @@ seeds = false
 skip-lint = false
 
 [programs.devnet]
-bastion = "BastNvau1tPerm1ss1onedDeFiVau1tProgram11"
+bastion = "3rsfme5BC3htuFJwFohPgNiDDmSo43gqZgQNvtKz3HVv"
 
 [registry]
 url = "https://api.apr.dev"

@@ -6,6 +6,7 @@ on:
     branches: [master]
     paths:
       - 'programs/**'
+      - '.github/workflows/**'
 
 jobs:
   build:
@@ -21,20 +22,29 @@ jobs:
           sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor avm --force
+          avm install 0.30.1
+          avm use 0.30.1
+          anchor --version
+
       - name: Configure Solana
         run: |
           solana config set --url devnet
+          solana-keygen new --no-passphrase -o ~/.config/solana/id.json --force
           solana --version
 
-      - name: Build SBF Program
+      - name: Build Program
         run: |
-          cd programs/bastion
-          cargo build-sbf --manifest-path Cargo.toml
-          ls -la ../../target/deploy/
+          anchor build
+          ls -la target/deploy/
 
       - name: Upload Program Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bastion-program
-          path: target/deploy/bastion.so
+          path: |
+            target/deploy/bastion.so
+            target/idl/bastion.json
           retention-days: 30
