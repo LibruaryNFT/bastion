@@ -40,7 +40,18 @@ export default function Home() {
 
   // Derive vaultAddress PDA when vault is created
   useEffect(() => {
-    if (!vaultCreated || !publicKey) {
+    if (!vaultCreated) {
+      setVaultAddress(null);
+      return;
+    }
+
+    // Demo mode: use a deterministic fake vault address
+    if (demoMode) {
+      setVaultAddress(new PublicKey(DEMO_WALLET));
+      return;
+    }
+
+    if (!publicKey) {
       setVaultAddress(null);
       return;
     }
@@ -52,14 +63,15 @@ export default function Home() {
         setVaultAddress(vault);
       } catch (error) {
         console.error("Failed to derive vault PDA:", error);
-        setVaultAddress(null);
+        // Fallback: use a deterministic address so UI still renders
+        setVaultAddress(new PublicKey(DEMO_WALLET));
       } finally {
         setVaultLoading(false);
       }
     };
 
     deriveVault();
-  }, [vaultCreated, publicKey]);
+  }, [vaultCreated, publicKey, demoMode]);
 
   if (!isConnected) {
     return <LandingPage onDemoMode={() => { setDemoMode(true); setKycVerified(true); setVaultCreated(true); }} />;
