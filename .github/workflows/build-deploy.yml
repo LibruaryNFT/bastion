@@ -16,40 +16,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Solana and Anchor
-        uses: heyAyushh/setup-anchor@v4.999
-        with:
-          anchor-version: '0.31.1'
-          solana-cli-version: '2.1.21'
-          node-version: '20'
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v2.1.21/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Configure Solana
         run: |
           solana config set --url devnet
           solana-keygen new --no-passphrase -o ~/.config/solana/id.json --force
-          anchor --version
           solana --version
           rustc --version
 
-      - name: Generate Cargo.lock with compatible deps
+      - name: Build SBF Program
         run: |
           cd programs/bastion
-          # Pin toml_parser to version that doesn't need edition2024
-          cargo generate-lockfile
-          # Replace any edition2024 deps
-          cargo update toml_parser@1.1.0 --precise 0.23.1 2>/dev/null || true
-          cargo update getrandom@0.4.2 --precise 0.2.15 2>/dev/null || true
-
-      - name: Build Program
-        run: |
-          anchor build
-          ls -la target/deploy/
+          cargo build-sbf --manifest-path Cargo.toml
+          ls -la ../../target/deploy/ || ls -la ../../target/sbf-solana-solana/release/
 
       - name: Upload Program Artifact
         uses: actions/upload-artifact@v4
         with:
           name: bastion-program
           path: |
-            target/deploy/bastion.so
-            target/idl/bastion.json
+            target/deploy/*.so
+            target/sbf-solana-solana/release/*.so
           retention-days: 30
