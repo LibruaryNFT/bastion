@@ -121,66 +121,251 @@ export default function Home() {
 }
 
 function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
+  const features = [
+    { icon: "01", title: "KYC / KYB Onboarding", desc: "Identity verification and business due diligence before vault access. Integrates with institutional-grade compliance providers.", tag: "Compliance" },
+    { icon: "02", title: "Role-Based Access Control", desc: "Granular permissions — Admin, Manager, Operator, Viewer. Each role has defined capabilities enforced on-chain.", tag: "Governance" },
+    { icon: "03", title: "Multi-Signature Approvals", desc: "Configurable M-of-N thresholds for withdrawals. Large transactions require multiple authorized signers.", tag: "Security" },
+    { icon: "04", title: "Spending Limits & Caps", desc: "Per-role daily and weekly limits enforced at the program level. Prevents unauthorized large transfers.", tag: "Risk" },
+    { icon: "05", title: "Travel Rule Compliance", desc: "Automatic originator and beneficiary data collection for transfers exceeding regulatory thresholds.", tag: "AML" },
+    { icon: "06", title: "Immutable Audit Trail", desc: "Every action — deposits, withdrawals, approvals, role changes — recorded on-chain with full provenance.", tag: "Reporting" },
+  ];
+
+  const stats = [
+    { value: "$2.27M", label: "Total Value Secured", sub: "across active vaults" },
+    { value: "47", label: "Transactions Processed", sub: "with full audit trail" },
+    { value: "100%", label: "Compliance Rate", sub: "KYC / KYT / AML / Travel Rule" },
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4">
-      <div className="max-w-2xl text-center">
-        <div className="mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-6"
-            style={{ background: "var(--accent-dim)", color: "var(--accent)" }}>
-            Built on Solana &middot; Token-2022
+    <div className="min-h-screen relative">
+      <div className="mesh-gradient" />
+      <div className="grid-pattern" />
+
+      {/* Nav */}
+      <nav className="relative z-10 flex items-center justify-between px-8 py-5 max-w-7xl mx-auto">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
+            style={{ background: "var(--accent)", color: "#fff" }}>B</div>
+          <span className="font-semibold text-lg tracking-tight">Bastion</span>
+        </div>
+        <div className="flex items-center gap-6">
+          <a href="https://explorer.solana.com/address/3rsfme5BC3htuFJwFohPgNiDDmSo43gqZgQNvtKz3HVv?cluster=devnet"
+            target="_blank" rel="noopener noreferrer"
+            className="text-xs font-medium transition-colors hover:text-[var(--accent)]"
+            style={{ color: "var(--text-secondary)" }}>
+            Devnet Program
+          </a>
+          <a href="https://github.com/LibruaryNFT/bastion" target="_blank" rel="noopener noreferrer"
+            className="text-xs font-medium transition-colors hover:text-[var(--accent)]"
+            style={{ color: "var(--text-secondary)" }}>
+            GitHub
+          </a>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <section className="relative z-10 max-w-5xl mx-auto px-8 pt-16 pb-20 text-center">
+        <div className="animate-fade-up">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-8 glass-card"
+            style={{ color: "var(--accent-light)" }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--success)" }} />
+            Live on Solana Devnet &middot; Token-2022 &middot; Anchor Framework
           </div>
-          <h1 className="text-5xl font-bold tracking-tight mb-4">
-            Bastion
-          </h1>
-          <p className="text-xl mb-2" style={{ color: "var(--text-secondary)" }}>
-            Institutional Permissioned DeFi Vault
-          </p>
-          <p className="text-sm max-w-lg mx-auto" style={{ color: "var(--text-secondary)" }}>
-            KYC-gated deposits, role-based access control, multi-sig approvals,
-            spending limits, and full audit trail. Everything institutions need
-            to operate stablecoin treasuries on-chain.
-          </p>
         </div>
 
-        <div className="flex flex-col items-center gap-3 mb-12">
+        <h1 className="text-6xl md:text-7xl font-bold tracking-tight mb-6 animate-fade-up delay-1"
+          style={{ lineHeight: 1.05 }}>
+          Institutional-Grade<br />
+          <span style={{ color: "var(--accent-light)" }}>Stablecoin Vaults</span>
+        </h1>
+
+        <p className="text-lg md:text-xl max-w-2xl mx-auto mb-10 animate-fade-up delay-2"
+          style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>
+          The compliance layer institutions need to operate treasury vaults on Solana.
+          KYC-gated access, multi-signature approvals, spending controls, and
+          Travel Rule compliance — all enforced on-chain.
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6 animate-fade-up delay-3">
           <WalletMultiButton />
           <button
             onClick={onDemoMode}
-            className="px-6 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-105"
+            className="px-7 py-3 rounded-xl text-sm font-semibold transition-all hover:translate-y-[-1px]"
             style={{
-              background: "var(--bg-secondary)",
+              background: "transparent",
               color: "var(--text-primary)",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--border-light)",
             }}
           >
-            Try Demo — No Wallet Needed
+            Explore Live Demo
           </button>
-          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            Explore the full app with simulated data
-          </p>
         </div>
+        <p className="text-xs animate-fade-up delay-3" style={{ color: "var(--text-tertiary)" }}>
+          No wallet required for demo &middot; Full vault experience with simulated data
+        </p>
+      </section>
 
-        {/* Feature Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-left">
-          {[
-            { title: "KYC Gate", desc: "Identity verification before vault access" },
-            { title: "Role-Based Access", desc: "Admin, Manager, Operator, Viewer roles" },
-            { title: "Multi-Sig", desc: "Configurable approval thresholds" },
-            { title: "Spending Limits", desc: "Per-role daily & weekly caps" },
-            { title: "Travel Rule", desc: "Originator/beneficiary data on large transfers" },
-            { title: "Audit Trail", desc: "Immutable on-chain activity log" },
-          ].map((f, i) => (
-            <div key={i} className="p-4 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
-              <h3 className="font-semibold text-sm mb-1">{f.title}</h3>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{f.desc}</p>
+      {/* Stats */}
+      <section className="relative z-10 max-w-4xl mx-auto px-8 pb-20">
+        <div className="grid grid-cols-3 gap-6">
+          {stats.map((s, i) => (
+            <div key={i} className={`text-center animate-fade-up delay-${i + 4}`}>
+              <p className="text-3xl md:text-4xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>{s.value}</p>
+              <p className="text-sm font-medium mt-1" style={{ color: "var(--text-secondary)" }}>{s.label}</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>{s.sub}</p>
             </div>
           ))}
         </div>
+      </section>
 
-        <p className="mt-12 text-xs" style={{ color: "var(--text-secondary)" }}>
-          StableHacks 2026 &middot; Track 1: Institutional Permissioned DeFi Vaults
-        </p>
-      </div>
+      {/* Compliance Bar */}
+      <section className="relative z-10 max-w-5xl mx-auto px-8 pb-20">
+        <div className="glass-card p-6 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full" style={{ background: "var(--success)" }} />
+            <span className="text-sm font-medium">Regulatory Framework</span>
+          </div>
+          {["KYC / KYB", "KYT Monitoring", "AML Screening", "Travel Rule", "RBAC On-Chain"].map((item, i) => (
+            <div key={i} className="px-3 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: "var(--accent-dim)", color: "var(--accent-light)" }}>
+              {item}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="relative z-10 max-w-5xl mx-auto px-8 pb-24">
+        <div className="text-center mb-16">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--accent-light)" }}>
+            Infrastructure
+          </p>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight">
+            Built for Regulated Institutions
+          </h2>
+          <p className="text-base mt-3 max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
+            Every feature designed to meet the compliance and operational standards
+            required by banks, asset managers, and regulated financial entities.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {features.map((f, i) => (
+            <div key={i} className={`glass-card p-6 group hover:border-[var(--border-light)] transition-all animate-fade-up delay-${Math.min(i + 1, 6)}`}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-xs font-mono font-bold" style={{ color: "var(--text-tertiary)" }}>{f.icon}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded"
+                  style={{ background: "var(--accent-dim)", color: "var(--accent-light)" }}>{f.tag}</span>
+              </div>
+              <h3 className="font-semibold text-base mb-2">{f.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Architecture */}
+      <section className="relative z-10 max-w-5xl mx-auto px-8 pb-24">
+        <div className="glass-card p-8 md:p-12">
+          <div className="grid md:grid-cols-2 gap-10">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--gold)" }}>
+                Technical Architecture
+              </p>
+              <h2 className="text-2xl font-bold tracking-tight mb-4">
+                On-Chain Program Design
+              </h2>
+              <p className="text-sm leading-relaxed mb-6" style={{ color: "var(--text-secondary)" }}>
+                Bastion is a Solana program built with the Anchor framework, leveraging Token-2022
+                for institutional token operations. All access control, approval logic, and compliance
+                checks are enforced at the program level — not the application layer.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {["Anchor 0.30", "Token-2022", "PDA Vaults", "CPI Transfers", "Event Emission"].map((t, i) => (
+                  <span key={i} className="px-3 py-1 rounded-md text-xs font-medium"
+                    style={{ background: "var(--bg-tertiary)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3">
+              {[
+                { step: "1", title: "Vault Initialization", desc: "Create PDA-owned vault with configurable roles, thresholds, and limits" },
+                { step: "2", title: "KYC Verification", desc: "On-chain attestation required before any vault interaction" },
+                { step: "3", title: "Deposit & Operations", desc: "Token-2022 transfers with role-based spending limits enforced per-instruction" },
+                { step: "4", title: "Multi-Sig Withdrawal", desc: "M-of-N approval collection on-chain before fund release" },
+                { step: "5", title: "Travel Rule & Audit", desc: "Originator/beneficiary data anchored. Full event log for regulators" },
+              ].map((s, i) => (
+                <div key={i} className="flex gap-4 p-3 rounded-lg" style={{ background: "var(--bg-tertiary)" }}>
+                  <span className="text-xs font-mono font-bold mt-0.5" style={{ color: "var(--accent-light)" }}>{s.step}</span>
+                  <div>
+                    <p className="text-sm font-medium">{s.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{s.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Partners / Context */}
+      <section className="relative z-10 max-w-5xl mx-auto px-8 pb-16">
+        <div className="text-center">
+          <p className="text-xs font-medium mb-6" style={{ color: "var(--text-tertiary)" }}>
+            Built for StableHacks 2026 &middot; Track 1: Institutional Permissioned DeFi Vaults
+          </p>
+          <div className="flex items-center justify-center gap-8 flex-wrap">
+            {["Solana Foundation", "AMINA Bank", "Solstice Labs", "Tenity"].map((name, i) => (
+              <span key={i} className="text-sm font-medium" style={{ color: "var(--text-tertiary)" }}>{name}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="relative z-10 max-w-3xl mx-auto px-8 pb-24 text-center">
+        <div className="glass-card p-10">
+          <h2 className="text-2xl font-bold mb-3">Ready to Explore?</h2>
+          <p className="text-sm mb-8" style={{ color: "var(--text-secondary)" }}>
+            Connect your Solana wallet to interact with the live devnet program,
+            or try the demo to see the full institutional vault experience.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <WalletMultiButton />
+            <button
+              onClick={onDemoMode}
+              className="px-7 py-3 rounded-xl text-sm font-semibold transition-all hover:translate-y-[-1px]"
+              style={{
+                background: "transparent",
+                color: "var(--text-primary)",
+                border: "1px solid var(--border-light)",
+              }}
+            >
+              Explore Live Demo
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="relative z-10 border-t px-8 py-8" style={{ borderColor: "var(--border)" }}>
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded flex items-center justify-center font-bold text-[10px]"
+              style={{ background: "var(--accent)", color: "#fff" }}>B</div>
+            <span className="text-sm font-medium">Bastion</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <a href="https://github.com/LibruaryNFT/bastion" target="_blank" rel="noopener noreferrer"
+              className="text-xs hover:text-[var(--accent)] transition-colors" style={{ color: "var(--text-tertiary)" }}>GitHub</a>
+            <a href="https://explorer.solana.com/address/3rsfme5BC3htuFJwFohPgNiDDmSo43gqZgQNvtKz3HVv?cluster=devnet"
+              target="_blank" rel="noopener noreferrer"
+              className="text-xs hover:text-[var(--accent)] transition-colors" style={{ color: "var(--text-tertiary)" }}>Solana Explorer</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
