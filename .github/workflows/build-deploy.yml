@@ -1,0 +1,40 @@
+name: Build and Deploy Bastion Program
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'programs/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Configure Solana
+        run: |
+          solana config set --url devnet
+          solana --version
+
+      - name: Build SBF Program
+        run: |
+          cd programs/bastion
+          cargo build-sbf --manifest-path Cargo.toml
+          ls -la ../../target/deploy/
+
+      - name: Upload Program Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bastion-program
+          path: target/deploy/bastion.so
+          retention-days: 30
