@@ -346,6 +346,168 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
           </div>
         </div>
       </div>
+
+      {/* Regulatory Standards Mapping */}
+      <div className="mt-8 p-6 rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Regulatory Standards Mapping</h3>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>
+              How Bastion satisfies each regulatory requirement
+            </p>
+          </div>
+          <span className="px-3 py-1 rounded-lg text-xs font-medium" style={{ background: "var(--accent-dim)", color: "var(--accent-light)" }}>
+            12 Standards Mapped
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          {[
+            {
+              standard: "FATF Recommendation 1",
+              title: "Risk-Based Approach",
+              requirement: "Apply risk-based AML/CFT measures proportionate to identified risks",
+              implementation: "Role-based spending limits enforce tiered controls. Admin has full access, Operator has 10% daily cap. Transfer Hook validates limits on every transfer.",
+              status: "enforced",
+            },
+            {
+              standard: "FATF Recommendation 5",
+              title: "Customer Due Diligence",
+              requirement: "Identify and verify customer identity before establishing business relationship",
+              implementation: "On-chain KycAttestation PDA created per wallet. Includes verified flag, provider reference, and expiry timestamp. Transfer Hook rejects transfers from unverified wallets.",
+              status: "enforced",
+            },
+            {
+              standard: "FATF Recommendation 10",
+              title: "Record Keeping",
+              requirement: "Maintain transaction records for at least 5 years, available to authorities",
+              implementation: "All events emitted on-chain (immutable Solana ledger). KycAttestationCreated, TransferHookTriggered, WithdrawalExecuted events include full metadata. On-chain data persists indefinitely.",
+              status: "enforced",
+            },
+            {
+              standard: "FATF Recommendation 15",
+              title: "Virtual Asset Service Providers",
+              requirement: "VASPs must be regulated, licensed, and subject to AML/CFT supervision",
+              implementation: "Bastion enforces compliance at the token level — even if a VASP builds their own UI, Transfer Hooks still fire. Regulatory roadmap includes MSB licensing (US) and VASP registration (EU).",
+              status: "partial",
+            },
+            {
+              standard: "FATF Recommendation 16",
+              title: "Travel Rule",
+              requirement: "Collect and transmit originator/beneficiary information on transfers above threshold",
+              implementation: "Transfers >= $3,000 USDC require TravelRuleData PDA with originator name, address, institution + beneficiary name, address, institution. Data submitted on-chain before transfer executes.",
+              status: "enforced",
+            },
+            {
+              standard: "Swiss AMLA Art. 10",
+              title: "Due Diligence (Swiss Anti-Money Laundering Act)",
+              requirement: "Financial intermediaries must verify identity of contracting party",
+              implementation: "KYC attestation required before any vault interaction. Attestation includes provider reference (Onfido sandbox), document type, and expiry. Expired KYC blocks all operations.",
+              status: "enforced",
+            },
+            {
+              standard: "FINMA Circular 2023/1",
+              title: "Operational Risk Management",
+              requirement: "Institutions must implement controls for operational risk including unauthorized transactions",
+              implementation: "Per-role daily spending limits enforced at token level. Multi-sig approval thresholds prevent single-actor risk. Vault pause/unpause for emergency stop. All enforced on-chain, not client-side.",
+              status: "enforced",
+            },
+            {
+              standard: "EU MiCA Article 68",
+              title: "Record-Keeping Obligations",
+              requirement: "Crypto-asset service providers must keep records of all services and transactions",
+              implementation: "15 event types emitted on-chain: vault creation, KYC verification, deposits, withdrawal requests/approvals/executions, Travel Rule submissions, Transfer Hook triggers. Immutable and queryable via Solana RPC.",
+              status: "enforced",
+            },
+            {
+              standard: "ISO 27001",
+              title: "Information Security Access Control",
+              requirement: "Restrict access to information assets based on business and security requirements",
+              implementation: "Four-tier role system (Admin, Manager, Operator, Viewer) with on-chain enforcement. PDA-based account ownership prevents unauthorized access. Role changes require Admin approval.",
+              status: "enforced",
+            },
+            {
+              standard: "SOX Section 404",
+              title: "Internal Controls Over Financial Reporting",
+              requirement: "Management must assess effectiveness of internal controls",
+              implementation: "Multi-sig approval workflow for withdrawals. Configurable M-of-N thresholds. Audit trail captures every approval with actor identity and timestamp. Controls are cryptographic, not policy-based.",
+              status: "enforced",
+            },
+            {
+              standard: "BCBS 239",
+              title: "Principles for Risk Data Aggregation",
+              requirement: "Banks must have strong capabilities for risk data aggregation and reporting",
+              implementation: "All vault metrics available on-chain: total deposited, total withdrawn, member count, daily spending per role, pending approvals. Exportable via Solana RPC. Real-time, not batch.",
+              status: "enforced",
+            },
+            {
+              standard: "EU GDPR Art. 17",
+              title: "Right to Erasure Consideration",
+              requirement: "Data subjects have right to erasure of personal data",
+              implementation: "Personal KYC data (name, document) stored off-chain with compliance provider (Onfido). On-chain attestation contains only: wallet address, verified flag, provider reference hash, expiry. No PII on-chain.",
+              status: "designed",
+            },
+          ].map((reg, i) => (
+            <div
+              key={i}
+              className="p-4 rounded-lg border cursor-pointer transition-all hover:border-[var(--border-light)]"
+              style={{ borderColor: "var(--border)", background: "var(--bg-tertiary)" }}
+              onClick={() => setExpandedMetadata(expandedMetadata === reg.standard ? null : reg.standard)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className={`w-2 h-2 rounded-full ${
+                    reg.status === "enforced" ? "bg-[var(--success)]" :
+                    reg.status === "partial" ? "bg-[var(--warning)]" :
+                    "bg-[var(--accent)]"
+                  }`} />
+                  <div>
+                    <span className="text-sm font-semibold">{reg.standard}</span>
+                    <span className="text-xs ml-2" style={{ color: "var(--text-secondary)" }}>{reg.title}</span>
+                  </div>
+                </div>
+                <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded ${
+                  reg.status === "enforced" ? "bg-[var(--success-dim)] text-[var(--success)]" :
+                  reg.status === "partial" ? "bg-[var(--warning-dim)] text-[var(--warning)]" :
+                  "bg-[var(--accent-dim)] text-[var(--accent-light)]"
+                }`}>
+                  {reg.status === "enforced" ? "On-Chain Enforced" :
+                   reg.status === "partial" ? "Partially Implemented" :
+                   "Architecture Ready"}
+                </span>
+              </div>
+
+              {expandedMetadata === reg.standard && (
+                <div className="mt-3 pt-3 border-t space-y-2" style={{ borderColor: "var(--border)" }}>
+                  <div>
+                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--text-tertiary)" }}>Requirement</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-secondary)" }}>{reg.requirement}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-semibold tracking-wider" style={{ color: "var(--accent-light)" }}>Bastion Implementation</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--text-primary)" }}>{reg.implementation}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex items-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
+            <span>On-Chain Enforced (10)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[var(--warning)]" />
+            <span>Partially Implemented (1)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+            <span>Architecture Ready (1)</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
