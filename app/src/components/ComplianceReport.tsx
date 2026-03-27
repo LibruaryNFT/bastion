@@ -268,9 +268,10 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
         style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
       >
         <div className="px-5 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-          <h3 className="font-semibold text-sm">Travel Rule Qualifying Transfers (&gt;$3,000)</h3>
+          <h3 className="font-semibold text-sm">Travel Rule Qualifying Transfers (&gt;$1,000 FATF / All transfers Swiss/EU)</h3>
           <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
-            Per FATF guidelines, originator and beneficiary information is collected and stored for all qualifying transfers.
+            Per FATF Rec. 16 (USD/EUR 1,000 threshold), Swiss FINMA Guidance 02/2019 (CHF 0 threshold), and EU TFR 2023/1113 (EUR 0 threshold).
+            Configurable per jurisdiction. Default: $1,000.
           </p>
         </div>
         <table className="w-full text-xs">
@@ -357,94 +358,94 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
             </p>
           </div>
           <span className="px-3 py-1 rounded-lg text-xs font-medium" style={{ background: "var(--accent-dim)", color: "var(--accent-light)" }}>
-            12 Standards Mapped
+            12 Standards — FATF / FINMA / MiCA / DORA / GDPR
           </span>
         </div>
 
         <div className="space-y-3">
           {[
             {
-              standard: "FATF Recommendation 1",
-              title: "Risk-Based Approach",
-              requirement: "Apply risk-based AML/CFT measures proportionate to identified risks",
-              implementation: "Role-based spending limits enforce tiered controls. Admin has full access, Operator has 10% daily cap. Transfer Hook validates limits on every transfer.",
-              status: "enforced",
-            },
-            {
-              standard: "FATF Recommendation 5",
-              title: "Customer Due Diligence",
-              requirement: "Identify and verify customer identity before establishing business relationship",
-              implementation: "On-chain KycAttestation PDA created per wallet. Includes verified flag, provider reference, and expiry timestamp. Transfer Hook rejects transfers from unverified wallets.",
-              status: "enforced",
-            },
-            {
               standard: "FATF Recommendation 10",
+              title: "Customer Due Diligence (CDD)",
+              requirement: "Identify and verify customer identity using reliable, independent sources before establishing business relationship. Conduct ongoing due diligence including scrutiny of transactions.",
+              implementation: "On-chain KycAttestation PDA per wallet with verified flag, provider reference, and expiry timestamp. Transfer Hook rejects transfers from unverified or expired-KYC wallets. Expiry enforcement enables ongoing CDD.",
+              status: "enforced",
+            },
+            {
+              standard: "FATF Recommendation 11",
               title: "Record Keeping",
-              requirement: "Maintain transaction records for at least 5 years, available to authorities",
-              implementation: "All events emitted on-chain (immutable Solana ledger). KycAttestationCreated, TransferHookTriggered, WithdrawalExecuted events include full metadata. On-chain data persists indefinitely.",
+              requirement: "Maintain transaction records and CDD information for at least 5 years, available to domestic competent authorities on a timely basis.",
+              implementation: "15 event types emitted on immutable Solana ledger: KycAttestationCreated, TransferHookTriggered, WithdrawalExecuted, etc. On-chain data persists indefinitely. CDD records maintained off-chain with provider retention policies.",
               status: "enforced",
             },
             {
               standard: "FATF Recommendation 15",
-              title: "Virtual Asset Service Providers",
-              requirement: "VASPs must be regulated, licensed, and subject to AML/CFT supervision",
-              implementation: "Bastion enforces compliance at the token level — even if a VASP builds their own UI, Transfer Hooks still fire. Regulatory roadmap includes MSB licensing (US) and VASP registration (EU).",
+              title: "New Technologies (VASPs)",
+              requirement: "VASPs must be licensed/registered, subject to effective supervision, and apply all relevant FATF preventive measures.",
+              implementation: "Token-2022 Transfer Hooks enable programmatic enforcement of VASP obligations — KYC, spending limits, and Travel Rule checks fire on every transfer regardless of the calling application. Regulatory roadmap includes VASP registration (EU MiCA) and MSB licensing.",
               status: "partial",
             },
             {
               standard: "FATF Recommendation 16",
-              title: "Travel Rule",
-              requirement: "Collect and transmit originator/beneficiary information on transfers above threshold",
-              implementation: "Transfers >= $3,000 USDC require TravelRuleData PDA with originator name, address, institution + beneficiary name, address, institution. Data submitted on-chain before transfer executes.",
+              title: "Wire Transfers / Travel Rule",
+              requirement: "Collect originator and beneficiary information on transfers above USD/EUR 1,000. Full information required for cross-border transfers.",
+              implementation: "TravelRuleData PDA stores originator name, address, institution + beneficiary name, address, institution. Configurable threshold: $1,000 (FATF default), CHF 0 (Swiss), EUR 0 (EU TFR 2023/1113). Data submitted on-chain before transfer executes.",
               status: "enforced",
             },
             {
-              standard: "Swiss AMLA Art. 10",
-              title: "Due Diligence (Swiss Anti-Money Laundering Act)",
-              requirement: "Financial intermediaries must verify identity of contracting party",
-              implementation: "KYC attestation required before any vault interaction. Attestation includes provider reference (Onfido sandbox), document type, and expiry. Expired KYC blocks all operations.",
+              standard: "Swiss AMLA Arts. 3–6",
+              title: "Due Diligence Duties",
+              requirement: "Art. 3: Verify identity of contracting party. Art. 4: Identify beneficial owner. Art. 5: Repeat verification when doubts arise. Art. 6: Duty to clarify unusual transactions.",
+              implementation: "KYC attestation required before any vault interaction. Attestation includes provider reference, document type, and expiry. Expired KYC blocks all operations. Beneficial owner identification handled by off-chain KYC provider (Onfido).",
+              status: "enforced",
+            },
+            {
+              standard: "FINMA Guidance 02/2019",
+              title: "Payments on the Blockchain",
+              requirement: "Travel Rule applies to all transactions between regulated entities regardless of amount (CHF 0 threshold). Transfers to self-hosted wallets require proof of ownership.",
+              implementation: "Configurable Travel Rule threshold supports CHF 0 for Swiss compliance. All vault members are KYC-verified, establishing identity chain. TravelRuleData PDA captures originator/beneficiary for every qualifying transfer.",
               status: "enforced",
             },
             {
               standard: "FINMA Circular 2023/1",
-              title: "Operational Risk Management",
-              requirement: "Institutions must implement controls for operational risk including unauthorized transactions",
-              implementation: "Per-role daily spending limits enforced at token level. Multi-sig approval thresholds prevent single-actor risk. Vault pause/unpause for emergency stop. All enforced on-chain, not client-side.",
+              title: "Operational Risks and Resilience — Banks",
+              requirement: "Implement operational risk management including ICT controls, cyber resilience, segregation of duties, and business continuity.",
+              implementation: "Per-role daily spending limits enforced at token level. Multi-sig approval thresholds prevent single-actor risk. Vault pause/unpause for emergency stop. Segregation of duties via four-tier RBAC. All enforced on-chain, not client-side.",
               status: "enforced",
             },
             {
-              standard: "EU MiCA Article 68",
-              title: "Record-Keeping Obligations",
-              requirement: "Crypto-asset service providers must keep records of all services and transactions",
-              implementation: "15 event types emitted on-chain: vault creation, KYC verification, deposits, withdrawal requests/approvals/executions, Travel Rule submissions, Transfer Hook triggers. Immutable and queryable via Solana RPC.",
+              standard: "FINMA Circular 2017/1",
+              title: "Corporate Governance — Banks",
+              requirement: "Three lines of defense model. Internal controls must be adequate, with clear responsibility allocation and independent oversight.",
+              implementation: "First line: Operators execute within spending limits. Second line: Managers approve withdrawals via multi-sig. Third line: Admin controls membership, thresholds, and vault pause. All actions produce immutable audit trail for independent review.",
               status: "enforced",
             },
             {
-              standard: "ISO 27001",
-              title: "Information Security Access Control",
-              requirement: "Restrict access to information assets based on business and security requirements",
-              implementation: "Four-tier role system (Admin, Manager, Operator, Viewer) with on-chain enforcement. PDA-based account ownership prevents unauthorized access. Role changes require Admin approval.",
+              standard: "EU MiCA Art. 68(10)",
+              title: "CASP Record-Keeping (via RTS)",
+              requirement: "CASPs must keep records of all services, activities, orders, and transactions sufficient for supervisory authorities. ESMA develops RTS specifying format and retention.",
+              implementation: "15 event types on-chain: vault creation, KYC verification, deposits, withdrawal requests/approvals/executions, Travel Rule submissions, Transfer Hook triggers. Immutable, queryable via Solana RPC, retained indefinitely.",
               status: "enforced",
             },
             {
-              standard: "SOX Section 404",
-              title: "Internal Controls Over Financial Reporting",
-              requirement: "Management must assess effectiveness of internal controls",
-              implementation: "Multi-sig approval workflow for withdrawals. Configurable M-of-N thresholds. Audit trail captures every approval with actor identity and timestamp. Controls are cryptographic, not policy-based.",
+              standard: "EU DORA (Reg. 2022/2554)",
+              title: "Digital Operational Resilience Act",
+              requirement: "CASPs must maintain ICT risk management, incident reporting, resilience testing, and third-party risk management frameworks. Effective Jan 17, 2025.",
+              implementation: "Vault pause/unpause provides incident response capability. On-chain audit trail enables incident reconstruction. Multi-sig prevents single points of failure. Token-level enforcement via Transfer Hooks means compliance survives application-layer failures.",
+              status: "partial",
+            },
+            {
+              standard: "ISO 27001 Control A.5.15",
+              title: "Access Control",
+              requirement: "Rules to control physical and logical access to information and other associated assets shall be established and implemented based on business and information security requirements.",
+              implementation: "Four-tier role system (Admin, Manager, Operator, Viewer) with on-chain enforcement via PDA-based account ownership. Each role has defined capabilities and spending limits. Role changes require Admin approval. Cannot be bypassed at application layer.",
               status: "enforced",
             },
             {
-              standard: "BCBS 239",
-              title: "Principles for Risk Data Aggregation",
-              requirement: "Banks must have strong capabilities for risk data aggregation and reporting",
-              implementation: "All vault metrics available on-chain: total deposited, total withdrawn, member count, daily spending per role, pending approvals. Exportable via Solana RPC. Real-time, not batch.",
-              status: "enforced",
-            },
-            {
-              standard: "EU GDPR Art. 17",
-              title: "Right to Erasure Consideration",
-              requirement: "Data subjects have right to erasure of personal data",
-              implementation: "Personal KYC data (name, document) stored off-chain with compliance provider (Onfido). On-chain attestation contains only: wallet address, verified flag, provider reference hash, expiry. No PII on-chain.",
+              standard: "EU GDPR Art. 25 + Art. 5(1)(c)",
+              title: "Data Protection by Design / Data Minimisation",
+              requirement: "Implement data protection by design and by default. Personal data must be adequate, relevant, and limited to what is necessary.",
+              implementation: "On-chain attestation contains only: wallet address, verified flag, provider reference hash, expiry. No PII stored on-chain. Personal KYC data maintained off-chain with compliance provider under full GDPR controls. On-chain hashes cannot identify individuals without off-chain mapping, which can be deleted per Art. 17 requests.",
               status: "designed",
             },
           ].map((reg, i) => (
@@ -496,11 +497,11 @@ export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
         <div className="mt-4 flex items-center gap-4 text-xs" style={{ color: "var(--text-secondary)" }}>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
-            <span>On-Chain Enforced (10)</span>
+            <span>On-Chain Enforced (9)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--warning)]" />
-            <span>Partially Implemented (1)</span>
+            <span>Partially Implemented (2)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />

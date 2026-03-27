@@ -203,12 +203,12 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
   }, []);
 
   const features = [
-    { icon: "01", title: "KYC / KYB Onboarding", desc: "Identity verification and business due diligence before vault access. On-chain attestation with expiry enforcement per FATF Recommendations 1, 5, and 10.", tag: "FATF Rec. 1/5/10" },
-    { icon: "02", title: "Role-Based Access Control", desc: "Granular permissions — Admin, Manager, Operator, Viewer — enforced on-chain. Aligns with ISO 27001 access control and SOX Section 404 internal controls.", tag: "ISO 27001 / SOX" },
-    { icon: "03", title: "Multi-Signature Approvals", desc: "Configurable M-of-N thresholds for withdrawals. Satisfies Basel Committee BCBS 239 principles for effective risk data aggregation.", tag: "BCBS 239" },
-    { icon: "04", title: "Spending Limits & Caps", desc: "Per-role daily limits enforced at the token level via Transfer Hooks. Meets FINMA Circular 2023/1 operational risk management requirements.", tag: "FINMA 2023/1" },
-    { icon: "05", title: "Travel Rule Compliance", desc: "Originator and beneficiary data collection for transfers exceeding CHF/USD 3,000 per FATF Recommendation 16 and Swiss AMLA Art. 10.", tag: "FATF Rec. 16" },
-    { icon: "06", title: "Immutable Audit Trail", desc: "Every action recorded on-chain with cryptographic provenance. Meets BCBS 239 audit requirements and EU MiCA Article 68 record-keeping obligations.", tag: "MiCA Art. 68" },
+    { icon: "01", title: "KYC / KYB Onboarding", desc: "On-chain attestation with expiry enforcement per FATF Rec. 10 (CDD). Identity verified via licensed provider before vault access. Expired KYC blocks all operations.", tag: "FATF Rec. 10" },
+    { icon: "02", title: "Role-Based Access Control", desc: "Four-tier RBAC (Admin, Manager, Operator, Viewer) enforced on-chain via PDAs. Aligns with ISO 27001 Control A.5.15 and FINMA Circular 2017/1 three lines of defense.", tag: "ISO 27001 / FINMA" },
+    { icon: "03", title: "Multi-Signature Approvals", desc: "Configurable M-of-N thresholds for withdrawals with immutable approval chain. Supports FINMA Circular 2023/1 operational risk controls and segregation of duties.", tag: "FINMA 2023/1" },
+    { icon: "04", title: "Spending Limits & Caps", desc: "Per-role daily limits enforced at the token level via Transfer Hooks. Cannot be bypassed even by direct program interaction. Meets FINMA operational resilience requirements.", tag: "Token-2022 Hooks" },
+    { icon: "05", title: "Travel Rule Compliance", desc: "Originator/beneficiary data per FATF Rec. 16. Configurable thresholds: $1,000 (FATF), CHF 0 (Swiss FINMA 02/2019), EUR 0 (EU TFR 2023/1113).", tag: "FATF Rec. 16" },
+    { icon: "06", title: "Immutable Audit Trail", desc: "15 event types on immutable Solana ledger. Satisfies FATF Rec. 11 (record keeping), EU MiCA Art. 68(10) record-keeping RTS, and EU DORA resilience requirements.", tag: "MiCA / DORA" },
   ];
 
   const stats = [
@@ -315,7 +315,7 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
             <div className="w-2 h-2 rounded-full" style={{ background: "var(--success)" }} />
             <span className="text-sm font-medium">Regulatory Framework</span>
           </div>
-          {["KYC / KYB (FATF 1/5)", "KYT (FATF 10/15)", "AML (AMLA Art. 10)", "Travel Rule (FATF 16)", "MiCA Art. 68"].map((item, i) => (
+          {["KYC (FATF Rec. 10)", "AML (AMLA Arts. 3–6)", "Travel Rule (FATF 16)", "FINMA 2023/1", "EU DORA / MiCA"].map((item, i) => (
             <div key={i} className="px-3 py-1.5 rounded-lg text-xs font-medium"
               style={{ background: "var(--accent-dim)", color: "var(--accent-light)" }}>
               {item}
