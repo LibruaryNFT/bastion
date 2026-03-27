@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked, transfer_checked};
 
 declare_id!("3rsfme5BC3htuFJwFohPgNiDDmSo43gqZgQNvtKz3HVv");
 
@@ -138,7 +139,7 @@ pub mod bastion {
         );
 
         // Transfer tokens from depositor to vault
-        let cpi_accounts = anchor_spl::token_2022::TransferChecked {
+        let cpi_accounts = TransferChecked {
             from: ctx.accounts.depositor_token_account.to_account_info(),
             mint: ctx.accounts.mint.to_account_info(),
             to: ctx.accounts.vault_token_account.to_account_info(),
@@ -146,7 +147,7 @@ pub mod bastion {
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        anchor_spl::token_2022::transfer_checked(cpi_ctx, amount, ctx.accounts.mint.decimals)?;
+        transfer_checked(cpi_ctx, amount, ctx.accounts.mint.decimals)?;
 
         // Update vault state
         let vault = &mut ctx.accounts.vault;
@@ -301,7 +302,7 @@ pub mod bastion {
         ];
         let signer = &[&seeds[..]];
 
-        let cpi_accounts = anchor_spl::token_2022::TransferChecked {
+        let cpi_accounts = TransferChecked {
             from: ctx.accounts.vault_token_account.to_account_info(),
             mint: ctx.accounts.mint.to_account_info(),
             to: ctx.accounts.recipient_token_account.to_account_info(),
@@ -309,7 +310,7 @@ pub mod bastion {
         };
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer);
-        anchor_spl::token_2022::transfer_checked(
+        transfer_checked(
             cpi_ctx,
             withdrawal.amount,
             ctx.accounts.mint.decimals,
@@ -457,19 +458,17 @@ pub struct Deposit<'info> {
     )]
     pub member: Account<'info, Member>,
 
-    /// CHECK: Token account owned by depositor
     #[account(mut)]
-    pub depositor_token_account: UncheckedAccount<'info>,
+    pub depositor_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    /// CHECK: Token account owned by vault PDA
     #[account(mut)]
-    pub vault_token_account: UncheckedAccount<'info>,
+    pub vault_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    pub mint: Account<'info, anchor_spl::token_2022::spl_token_2022::state::Mint>,
+    pub mint: InterfaceAccount<'info, Mint>,
 
     pub depositor: Signer<'info>,
 
-    pub token_program: Program<'info, anchor_spl::token_2022::Token2022>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -523,19 +522,17 @@ pub struct ExecuteWithdrawal<'info> {
     #[account(mut)]
     pub withdrawal: Account<'info, Withdrawal>,
 
-    /// CHECK: Token account owned by vault PDA
     #[account(mut)]
-    pub vault_token_account: UncheckedAccount<'info>,
+    pub vault_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    /// CHECK: Token account of recipient
     #[account(mut)]
-    pub recipient_token_account: UncheckedAccount<'info>,
+    pub recipient_token_account: InterfaceAccount<'info, TokenAccount>,
 
-    pub mint: Account<'info, anchor_spl::token_2022::spl_token_2022::state::Mint>,
+    pub mint: InterfaceAccount<'info, Mint>,
 
     pub executor: Signer<'info>,
 
-    pub token_program: Program<'info, anchor_spl::token_2022::Token2022>,
+    pub token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
