@@ -11,11 +11,11 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const MOCK_MEMBERS = [
-  { wallet: "7xKX...m4Qp", name: "Alice Chen", role: "Admin", kyc: true, dailySpent: 12000, dailyLimit: 100000, joined: "Mar 20" },
-  { wallet: "9aFR...n7Ks", name: "Bob Martinez", role: "Manager", kyc: true, dailySpent: 5000, dailyLimit: 50000, joined: "Mar 21" },
-  { wallet: "3bGT...p2Lm", name: "Carol Williams", role: "Manager", kyc: true, dailySpent: 0, dailyLimit: 50000, joined: "Mar 22" },
-  { wallet: "5cHU...r8Nj", name: "David Kim", role: "Operator", kyc: true, dailySpent: 8000, dailyLimit: 10000, joined: "Mar 23" },
-  { wallet: "2dIV...s9Ok", name: "Eve Thompson", role: "Viewer", kyc: true, dailySpent: 0, dailyLimit: 0, joined: "Mar 24" },
+  { wallet: "7xKX...m4Qp", name: "Alice Chen", role: "Admin", kyc: true, kycDate: "2026-03-20", dailySpent: 12000, dailyLimit: 100000, joined: "Mar 20", lastActivity: "2h ago" },
+  { wallet: "9aFR...n7Ks", name: "Bob Martinez", role: "Manager", kyc: true, kycDate: "2026-03-21", dailySpent: 5000, dailyLimit: 50000, joined: "Mar 21", lastActivity: "1h ago" },
+  { wallet: "3bGT...p2Lm", name: "Carol Williams", role: "Manager", kyc: true, kycDate: "2026-03-22", dailySpent: 0, dailyLimit: 50000, joined: "Mar 22", lastActivity: "3d ago" },
+  { wallet: "5cHU...r8Nj", name: "David Kim", role: "Operator", kyc: true, kycDate: "2026-03-23", dailySpent: 8000, dailyLimit: 10000, joined: "Mar 23", lastActivity: "8h ago" },
+  { wallet: "2dIV...s9Ok", name: "Eve Thompson", role: "Viewer", kyc: true, kycDate: "2026-03-25", dailySpent: 0, dailyLimit: 0, joined: "Mar 24", lastActivity: "1d ago" },
 ];
 
 export function MemberManager() {
@@ -48,7 +48,7 @@ export function MemberManager() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {["Member", "Role", "KYC", "Daily Spent", "Daily Limit", "Joined", "Actions"].map((h) => (
+              {["Member", "Role", "Spending Limit", "Daily Usage", "KYC Status", "Last Activity", "Actions"].map((h) => (
                 <th key={h} className="text-left px-5 py-3 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
                   {h}
                 </th>
@@ -56,45 +56,66 @@ export function MemberManager() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_MEMBERS.map((m) => (
-              <tr key={m.wallet} style={{ borderBottom: "1px solid var(--border)" }}>
-                <td className="px-5 py-3">
-                  <div>
-                    <p className="font-medium text-xs">{m.name}</p>
-                    <p className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{m.wallet}</p>
-                  </div>
-                </td>
-                <td className="px-5 py-3">
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded"
-                    style={{ color: ROLE_COLORS[m.role], background: `${ROLE_COLORS[m.role]}15` }}
-                  >
-                    {m.role}
-                  </span>
-                </td>
-                <td className="px-5 py-3">
-                  {m.kyc ? (
-                    <span className="text-xs" style={{ color: "var(--success)" }}>Verified</span>
-                  ) : (
-                    <span className="text-xs" style={{ color: "var(--danger)" }}>Pending</span>
-                  )}
-                </td>
-                <td className="px-5 py-3 text-xs">
-                  ${m.dailySpent.toLocaleString()}
-                </td>
-                <td className="px-5 py-3 text-xs" style={{ color: "var(--text-secondary)" }}>
-                  ${m.dailyLimit.toLocaleString()}
-                </td>
-                <td className="px-5 py-3 text-xs" style={{ color: "var(--text-secondary)" }}>
-                  {m.joined}
-                </td>
-                <td className="px-5 py-3">
-                  <button className="text-xs px-2 py-1 rounded" style={{ color: "var(--text-secondary)" }}>
-                    Edit
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {MOCK_MEMBERS.map((m) => {
+              const usagePercent = m.dailyLimit > 0 ? Math.round((m.dailySpent / m.dailyLimit) * 100) : 0;
+              return (
+                <tr key={m.wallet} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td className="px-5 py-3">
+                    <div>
+                      <p className="font-medium text-xs">{m.name}</p>
+                      <p className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>{m.wallet}</p>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span
+                      className="text-xs font-semibold px-2 py-0.5 rounded"
+                      style={{ color: ROLE_COLORS[m.role], background: `${ROLE_COLORS[m.role]}15` }}
+                    >
+                      {m.role}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-xs">
+                    <p>${m.dailyLimit.toLocaleString()}</p>
+                    <p style={{ color: "var(--text-secondary)" }}>daily limit</p>
+                  </td>
+                  <td className="px-5 py-3 text-xs">
+                    <div className="w-16 h-2 rounded-full mb-1" style={{ background: "var(--bg-tertiary)" }}>
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(usagePercent, 100)}%`,
+                          background: usagePercent > 80 ? "var(--danger)" : usagePercent > 50 ? "var(--warning)" : "var(--accent)",
+                        }}
+                      />
+                    </div>
+                    <p style={{ color: "var(--text-secondary)" }}>
+                      ${m.dailySpent.toLocaleString()} ({usagePercent}%)
+                    </p>
+                  </td>
+                  <td className="px-5 py-3">
+                    {m.kyc ? (
+                      <div className="text-xs">
+                        <span style={{ color: "var(--success)" }}>✓ Verified</span>
+                        <p style={{ color: "var(--text-secondary)" }}>{m.kycDate}</p>
+                      </div>
+                    ) : (
+                      <span className="text-xs" style={{ color: "var(--danger)" }}>Pending</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-xs" style={{ color: "var(--text-secondary)" }}>
+                    {m.lastActivity}
+                  </td>
+                  <td className="px-5 py-3 flex gap-2">
+                    <button className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                      Edit
+                    </button>
+                    <button className="text-xs px-2 py-1 rounded border" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
+                      Revoke
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 
+interface TravelRuleData {
+  originatorName: string;
+  originatorAddress: string;
+  originatorInstitution: string;
+  beneficiaryName: string;
+  beneficiaryAddress: string;
+  beneficiaryInstitution: string;
+  transmissionStatus: "pending" | "transmitting" | "ack_received" | "failed";
+}
+
 const MOCK_PENDING = [
   {
     id: 45,
@@ -38,6 +48,18 @@ const MOCK_HISTORY = [
 export function WithdrawalPanel() {
   const [showNewRequest, setShowNewRequest] = useState(false);
   const [newRequest, setNewRequest] = useState({ recipient: "", amount: "", memo: "" });
+  const [travelRuleData, setTravelRuleData] = useState<TravelRuleData>({
+    originatorName: "Treasury Operations Vault",
+    originatorAddress: "7xKX...m4Qp",
+    originatorInstitution: "Bastion Institutional Vault",
+    beneficiaryName: "",
+    beneficiaryAddress: "",
+    beneficiaryInstitution: "",
+    transmissionStatus: "pending",
+  });
+  const [showTravelRuleForm, setShowTravelRuleForm] = useState(false);
+
+  const needsTravelRule = Number(newRequest.amount) >= 3000;
 
   return (
     <div>
@@ -108,26 +130,28 @@ export function WithdrawalPanel() {
 
               {/* Travel Rule Info (for qualifying transfers) */}
               {w.travelRule && (
-                <div className="mt-3 p-3 rounded-lg border" style={{ borderColor: "var(--border)", background: "var(--bg-tertiary)" }}>
-                  <p className="text-xs font-semibold mb-2" style={{ color: "var(--danger)" }}>
-                    TRAVEL RULE DATA (transfers &gt; $3,000)
+                <div className="mt-3 p-4 rounded-lg border-2" style={{ borderColor: "var(--danger)", background: "rgba(239,68,68,0.05)" }}>
+                  <p className="text-xs font-semibold mb-3 px-2 py-1 rounded w-fit" style={{ background: "var(--danger-dim)", color: "var(--danger)" }}>
+                    TRAVEL RULE REQUIRED (FATF Recommendation 16)
                   </p>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="space-y-2 text-xs">
                     <div>
-                      <span style={{ color: "var(--text-secondary)" }}>Originator:</span>
-                      <span className="ml-1">Treasury Operations Vault</span>
+                      <span className="font-medium" style={{ color: "var(--text-secondary)" }}>Originator:</span>
+                      <p className="mt-0.5 ml-2">Treasury Operations Vault (7xKX...m4Qp)</p>
                     </div>
                     <div>
-                      <span style={{ color: "var(--text-secondary)" }}>Originator Address:</span>
-                      <span className="ml-1 font-mono">7xKX...m4Qp</span>
+                      <span className="font-medium" style={{ color: "var(--text-secondary)" }}>Beneficiary Address:</span>
+                      <p className="mt-0.5 ml-2 font-mono">{w.recipient}</p>
                     </div>
                     <div>
-                      <span style={{ color: "var(--text-secondary)" }}>Beneficiary:</span>
-                      <span className="ml-1">{w.recipient}</span>
+                      <span className="font-medium" style={{ color: "var(--text-secondary)" }}>Transfer Purpose:</span>
+                      <p className="mt-0.5 ml-2">{w.memo.split("—")[0].trim()}</p>
                     </div>
                     <div>
-                      <span style={{ color: "var(--text-secondary)" }}>Purpose:</span>
-                      <span className="ml-1">{w.memo.split("—")[0].trim()}</span>
+                      <span className="font-medium" style={{ color: "var(--text-secondary)" }}>Gateway Status:</span>
+                      <p className="mt-0.5 ml-2">
+                        <span style={{ color: "var(--warning)" }}>Notabene (Sandbox)</span> — Awaiting beneficiary institution details
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -219,23 +243,138 @@ export function WithdrawalPanel() {
                   style={{ background: "var(--bg-tertiary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
                 />
               </div>
-              {Number(newRequest.amount) > 3000 && (
-                <div className="p-3 rounded-lg text-xs" style={{ background: "rgba(255,71,87,0.1)", color: "var(--danger)" }}>
-                  <strong>Travel Rule applies.</strong> Originator and beneficiary information will
-                  be collected and attached to this transfer per FATF requirements.
+              {needsTravelRule && (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg text-xs" style={{ background: "rgba(255,71,87,0.1)", color: "var(--danger)" }}>
+                    <strong>Travel Rule Required (FATF Rec. 16):</strong> This transfer requires full originator and beneficiary details.
+                    <button
+                      onClick={() => setShowTravelRuleForm(!showTravelRuleForm)}
+                      className="block mt-2 underline"
+                    >
+                      {showTravelRuleForm ? "Hide details" : "Provide beneficiary details"}
+                    </button>
+                  </div>
+
+                  {/* Travel Rule Form */}
+                  {showTravelRuleForm && (
+                    <div className="p-4 rounded-lg border-2" style={{ borderColor: "var(--danger)", background: "var(--bg-tertiary)" }}>
+                      <h4 className="text-xs font-semibold mb-3">Travel Rule Data Collection</h4>
+                      <div className="space-y-3 text-xs">
+                        {/* Originator (Pre-filled) */}
+                        <div>
+                          <label className="block font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
+                            Originating Institution (Your Vault)
+                          </label>
+                          <input
+                            type="text"
+                            value={travelRuleData.originatorInstitution}
+                            disabled
+                            className="w-full px-2 py-1.5 rounded text-xs border"
+                            style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                          />
+                        </div>
+
+                        {/* Beneficiary Fields */}
+                        <div>
+                          <label className="block font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
+                            Beneficiary Name (Individual or Entity)
+                          </label>
+                          <input
+                            type="text"
+                            value={travelRuleData.beneficiaryName}
+                            onChange={(e) => setTravelRuleData({ ...travelRuleData, beneficiaryName: e.target.value })}
+                            placeholder="Full legal name"
+                            className="w-full px-2 py-1.5 rounded text-xs border"
+                            style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
+                            Beneficiary Address
+                          </label>
+                          <input
+                            type="text"
+                            value={travelRuleData.beneficiaryAddress}
+                            onChange={(e) => setTravelRuleData({ ...travelRuleData, beneficiaryAddress: e.target.value })}
+                            placeholder="Street, city, country"
+                            className="w-full px-2 py-1.5 rounded text-xs border"
+                            style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-medium mb-1" style={{ color: "var(--text-secondary)" }}>
+                            Beneficiary Institution
+                          </label>
+                          <input
+                            type="text"
+                            value={travelRuleData.beneficiaryInstitution}
+                            onChange={(e) => setTravelRuleData({ ...travelRuleData, beneficiaryInstitution: e.target.value })}
+                            placeholder="Receiving exchange or bank"
+                            className="w-full px-2 py-1.5 rounded text-xs border"
+                            style={{ background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+
+                        {/* Transmission Status */}
+                        {travelRuleData.transmissionStatus !== "pending" && (
+                          <div className="p-2 rounded" style={{ background: "var(--accent-dim)" }}>
+                            <p className="text-xs font-medium mb-1">Transmission Status:</p>
+                            {travelRuleData.transmissionStatus === "transmitting" && (
+                              <p style={{ color: "var(--warning)" }}>
+                                🔄 Transmitting to {travelRuleData.beneficiaryInstitution || "beneficiary VASP"}...
+                              </p>
+                            )}
+                            {travelRuleData.transmissionStatus === "ack_received" && (
+                              <p style={{ color: "var(--success)" }}>
+                                ✓ ACK received from beneficiary VASP — Transfer approved
+                              </p>
+                            )}
+                            {travelRuleData.transmissionStatus === "failed" && (
+                              <p style={{ color: "var(--danger)" }}>
+                                ✗ Transmission failed — Incomplete beneficiary details
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (travelRuleData.beneficiaryName && travelRuleData.beneficiaryAddress && travelRuleData.beneficiaryInstitution) {
+                            setTravelRuleData({ ...travelRuleData, transmissionStatus: "transmitting" });
+                            setTimeout(() => {
+                              setTravelRuleData({ ...travelRuleData, transmissionStatus: "ack_received" });
+                            }, 2000);
+                          } else {
+                            setTravelRuleData({ ...travelRuleData, transmissionStatus: "failed" });
+                          }
+                        }}
+                        className="w-full mt-3 px-3 py-1.5 rounded text-xs font-semibold"
+                        style={{ background: "var(--accent)", color: "#000" }}
+                      >
+                        Transmit to Notabene Gateway
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setShowNewRequest(false)}
+                onClick={() => {
+                  setShowNewRequest(false);
+                  setShowTravelRuleForm(false);
+                }}
                 className="flex-1 py-2.5 rounded-lg text-sm border"
                 style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
               >
                 Cancel
               </button>
               <button
-                className="flex-1 py-2.5 rounded-lg text-sm font-semibold"
+                disabled={needsTravelRule && travelRuleData.transmissionStatus !== "ack_received"}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-50"
                 style={{ background: "var(--accent)", color: "#000" }}
               >
                 Submit Request

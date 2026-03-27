@@ -28,6 +28,9 @@ const MOCK_RECENT_TXS = [
 export function VaultDashboard() {
   const vault = MOCK_VAULT;
   const balance = vault.totalDeposited - vault.totalWithdrawn;
+  const pendingApprovals = 2; // From MOCK_RECENT_TXS: tx 45 has 1/2, so 2 pending
+  const dailySpent = 25_000; // Sum of Alice (12K) + Bob (5K) + David (8K)
+  const dailyUsagePercent = Math.round((dailySpent / vault.dailyLimit) * 100);
 
   return (
     <div>
@@ -38,7 +41,16 @@ export function VaultDashboard() {
             {vault.stablecoin} Vault &middot; {vault.memberCount} members &middot; {vault.transactionCount} transactions
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {pendingApprovals > 0 && (
+            <div
+              className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border-2"
+              style={{ borderColor: "var(--warning)", background: "rgba(245,158,11,0.1)" }}
+            >
+              <span style={{ color: "var(--warning)" }}>⚠</span>
+              <span style={{ color: "var(--warning)" }}>{pendingApprovals} Pending Approvals</span>
+            </div>
+          )}
           <span
             className="px-3 py-1 rounded-full text-xs font-medium"
             style={{
@@ -76,6 +88,41 @@ export function VaultDashboard() {
             <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>{stat.sub}</p>
           </div>
         ))}
+      </div>
+
+      {/* Daily Spending Limit Card */}
+      <div className="mb-8 p-6 rounded-xl border" style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}>
+        <h3 className="font-semibold text-sm mb-4">Daily Spending Usage</h3>
+        <div className="space-y-3">
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-2xl font-bold">${dailySpent.toLocaleString()}</p>
+              <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                of ${vault.dailyLimit.toLocaleString()} daily limit ({dailyUsagePercent}%)
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Remaining</p>
+              <p className="text-lg font-bold" style={{ color: dailyUsagePercent > 80 ? "var(--danger)" : "var(--accent)" }}>
+                ${(vault.dailyLimit - dailySpent).toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <div className="w-full h-3 rounded-full" style={{ background: "var(--bg-tertiary)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min(dailyUsagePercent, 100)}%`,
+                background: dailyUsagePercent > 80 ? "var(--danger)" : dailyUsagePercent > 50 ? "var(--warning)" : "var(--accent)",
+              }}
+            />
+          </div>
+          <div className="flex justify-between text-xs" style={{ color: "var(--text-secondary)" }}>
+            <span>Alice (Admin): $12,000</span>
+            <span>Bob (Manager): $5,000</span>
+            <span>David (Operator): $8,000</span>
+          </div>
+        </div>
       </div>
 
       {/* Deposit Section */}
@@ -171,22 +218,49 @@ function ComplianceStatusCard() {
     { label: "Sanctions Check", status: "active", detail: "OFAC + EU lists current" },
   ];
 
+  const vaultStatus = {
+    regulatedEntity: "Licensed Institutional Custodian",
+    complianceRating: "A+ (Excellent)",
+    lastAuditDate: "2026-03-25 14:32:00 UTC",
+    nextAuditDue: "2026-04-25",
+  };
+
   return (
     <div
       className="p-5 rounded-xl border"
       style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
     >
       <h3 className="font-semibold text-sm mb-4">Compliance Status</h3>
-      <div className="space-y-2">
-        {checks.map((check) => (
-          <div key={check.label} className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: "var(--success)" }} />
-              <span>{check.label}</span>
-            </div>
-            <span style={{ color: "var(--text-secondary)" }}>{check.detail}</span>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3 pb-3 border-b" style={{ borderColor: "var(--border)" }}>
+          <div className="text-xs">
+            <p style={{ color: "var(--text-secondary)" }}>Regulated Entity</p>
+            <p className="font-medium mt-1" style={{ color: "var(--accent)" }}>{vaultStatus.regulatedEntity}</p>
           </div>
-        ))}
+          <div className="text-xs">
+            <p style={{ color: "var(--text-secondary)" }}>Compliance Rating</p>
+            <p className="font-medium mt-1" style={{ color: "var(--success)" }}>{vaultStatus.complianceRating}</p>
+          </div>
+          <div className="text-xs">
+            <p style={{ color: "var(--text-secondary)" }}>Last Audit</p>
+            <p className="font-mono mt-1" style={{ color: "var(--text-primary)" }}>{vaultStatus.lastAuditDate}</p>
+          </div>
+          <div className="text-xs">
+            <p style={{ color: "var(--text-secondary)" }}>Next Audit Due</p>
+            <p className="font-medium mt-1" style={{ color: "var(--warning)" }}>{vaultStatus.nextAuditDue}</p>
+          </div>
+        </div>
+        <div className="space-y-2">
+          {checks.map((check) => (
+            <div key={check.label} className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: "var(--success)" }} />
+                <span>{check.label}</span>
+              </div>
+              <span style={{ color: "var(--text-secondary)" }}>{check.detail}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

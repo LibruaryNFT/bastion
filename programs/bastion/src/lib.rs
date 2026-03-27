@@ -367,6 +367,217 @@ pub mod bastion {
 
         Ok(())
     }
+
+    // ========================================================================
+    // Token-2022 Transfer Hook Instructions
+    // ========================================================================
+
+    /// Transfer Hook — called by Token-2022 before every transfer
+    /// Enforces KYC, spending limits, and Travel Rule at the token level.
+    /// This is invoked automatically by the Token-2022 program as part of
+    /// the transfer extension mechanism.
+    pub fn transfer_hook(
+        ctx: Context<TransferHook>,
+        amount: u64,
+    ) -> Result<()> {
+        let source_kyc = &ctx.accounts.source_kyc;
+        let dest_kyc = &ctx.accounts.dest_kyc;
+
+        // 1. Check source wallet has valid KYC attestation
+        require!(
+            source_kyc.wallet == ctx.accounts.source.key(),
+            BastionError::KycMismatch
+        );
+        require!(source_kyc.verified, BastionError::KycRequired);
+        require!(
+            source_kyc.expiry > Clock::get()?.unix_timestamp,
+            BastionError::KycExpired
+        );
+
+        // 2. Check destination wallet has valid KYC attestation
+        require!(
+            dest_kyc.wallet == ctx.accounts.destination.key(),
+            BastionError::KycMismatch
+        );
+        require!(dest_kyc.verified, BastionError::KycRequired);
+        require!(
+            dest_kyc.expiry > Clock::get()?.unix_timestamp,
+            BastionError::KycExpired
+        );
+
+        // 3. Check token-level spending limit for source
+        let source_token_state = &mut ctx.accounts.source_token_state;
+        let now = Clock::get()?.unix_timestamp;
+        let day_seconds: i64 = 86400;
+
+        // Reset daily spending if new day
+        if now - source_token_state.last_transfer_reset >= day_seconds {
+            source_token_state.daily_transferred = 0;
+            source_token_state.last_transfer_reset = now;
+        }
+
+        require!(
+            source_token_state.daily_transferred + amount <= source_token_state.daily_limit,
+            BastionError::DailyLimitExceeded
+        );
+
+        source_token_state.daily_transferred += amount;
+
+        // 4. If amount >= Travel Rule threshold, verify Travel Rule data exists
+        let travel_rule_threshold: u64 = 3_000_000_000; // 3000 * 10^6 for USDC with 6 decimals
+
+        if amount >= travel_rule_threshold {
+            let travel_rule = &ctx.accounts.travel_rule_data;
+            require!(
+                travel_rule.is_filled,
+                BastionError::TravelRuleDataMissing
+            );
+            require!(
+                travel_rule.originator == ctx.accounts.source.key(),
+                BastionError::TravelRuleMismatch
+            );
+            require!(
+                travel_rule.beneficiary == ctx.accounts.destination.key(),
+                BastionError::TravelRuleMismatch
+            );
+        }
+
+        // 5. Emit compliance event
+        emit!(TransferHookTriggered {
+            source: ctx.accounts.source.key(),
+            destination: ctx.accounts.destination.key(),
+            amount,
+            source_kyc_provider: source_kyc.provider.clone(),
+            dest_kyc_provider: dest_kyc.provider.clone(),
+            travel_rule_applies: amount >= travel_rule_threshold,
+            timestamp: now,
+        });
+
+        Ok(())
+    }
+
+    /// Create a KYC attestation account for a wallet.
+    /// Only compliance providers can attest KYC status on-chain.
+    pub fn create_kyc_attestation(
+        ctx: Context<CreateKycAttestation>,
+        provider: String,
+        kyc_expiry_days: u16,
+    ) -> Result<()> {
+        require!(provider.len() <= 32, BastionError::NameTooLong);
+        require!(kyc_expiry_days > 0 && kyc_expiry_days <= 3650, BastionError::InvalidKycExpiry); // 1-10 years
+
+        let now = Clock::get()?.unix_timestamp;
+        let expiry = now + (kyc_expiry_days as i64 * 86400);
+
+        let attestation = &mut ctx.accounts.kyc_attestation;
+        attestation.wallet = ctx.accounts.subject.key();
+        attestation.verified = true;
+        attestation.provider = provider;
+        attestation.verified_at = now;
+        attestation.expiry = expiry;
+        attestation.bump = ctx.bumps.kyc_attestation;
+
+        emit!(KycAttestationCreated {
+            wallet: attestation.wallet,
+            provider: attestation.provider.clone(),
+            verified_at: now,
+            expiry,
+            created_by: ctx.accounts.provider.key(),
+        });
+
+        Ok(())
+    }
+
+    /// Update KYC attestation (e.g., renew expiry).
+    /// Only the original provider can update their own attestation.
+    pub fn update_kyc_attestation(
+        ctx: Context<UpdateKycAttestation>,
+        new_expiry_days: u16,
+    ) -> Result<()> {
+        require!(new_expiry_days > 0 && new_expiry_days <= 3650, BastionError::InvalidKycExpiry);
+
+        let now = Clock::get()?.unix_timestamp;
+        let new_expiry = now + (new_expiry_days as i64 * 86400);
+
+        let attestation = &mut ctx.accounts.kyc_attestation;
+        attestation.expiry = new_expiry;
+
+        emit!(KycAttestationUpdated {
+            wallet: attestation.wallet,
+            provider: attestation.provider.clone(),
+            new_expiry,
+            updated_by: ctx.accounts.provider.key(),
+            timestamp: now,
+        });
+
+        Ok(())
+    }
+
+    /// Submit Travel Rule data for large transfers.
+    /// Required for transfers >= 3000 USDC as per FATF regulations.
+    pub fn submit_travel_rule_data(
+        ctx: Context<SubmitTravelRuleData>,
+        originator_name: String,
+        originator_address: String,
+        beneficiary_name: String,
+        beneficiary_address: String,
+        tx_reference: String,
+    ) -> Result<()> {
+        require!(originator_name.len() <= 128, BastionError::NameTooLong);
+        require!(originator_address.len() <= 256, BastionError::MemoTooLong);
+        require!(beneficiary_name.len() <= 128, BastionError::NameTooLong);
+        require!(beneficiary_address.len() <= 256, BastionError::MemoTooLong);
+        require!(tx_reference.len() <= 64, BastionError::NameTooLong);
+
+        let now = Clock::get()?.unix_timestamp;
+
+        let travel_rule = &mut ctx.accounts.travel_rule_data;
+        travel_rule.originator = ctx.accounts.originator.key();
+        travel_rule.originator_name = originator_name;
+        travel_rule.originator_address = originator_address;
+        travel_rule.beneficiary = ctx.accounts.beneficiary.key();
+        travel_rule.beneficiary_name = beneficiary_name;
+        travel_rule.beneficiary_address = beneficiary_address;
+        travel_rule.tx_reference = tx_reference;
+        travel_rule.is_filled = true;
+        travel_rule.submitted_at = now;
+        travel_rule.bump = ctx.bumps.travel_rule_data;
+
+        emit!(TravelRuleDataSubmitted {
+            originator: travel_rule.originator,
+            beneficiary: travel_rule.beneficiary,
+            tx_reference: travel_rule.tx_reference.clone(),
+            submitted_by: ctx.accounts.submitter.key(),
+            timestamp: now,
+        });
+
+        Ok(())
+    }
+
+    /// Initialize token-level spending limits for a wallet.
+    /// Allows per-wallet daily transfer limits at the token level.
+    pub fn initialize_token_limit(
+        ctx: Context<InitializeTokenLimit>,
+        daily_limit: u64,
+    ) -> Result<()> {
+        require!(daily_limit > 0, BastionError::InvalidAmount);
+
+        let token_state = &mut ctx.accounts.token_state;
+        token_state.wallet = ctx.accounts.wallet.key();
+        token_state.daily_limit = daily_limit;
+        token_state.daily_transferred = 0;
+        token_state.last_transfer_reset = Clock::get()?.unix_timestamp;
+        token_state.bump = ctx.bumps.token_state;
+
+        emit!(TokenLimitInitialized {
+            wallet: token_state.wallet,
+            daily_limit,
+            initialized_by: ctx.accounts.admin.key(),
+            timestamp: Clock::get()?.unix_timestamp,
+        });
+
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -550,6 +761,129 @@ pub struct PauseVault<'info> {
 }
 
 // ============================================================================
+// Token-2022 Transfer Hook Accounts
+// ============================================================================
+
+#[derive(Accounts)]
+pub struct TransferHook<'info> {
+    /// Source wallet initiating the transfer
+    pub source: Signer<'info>,
+
+    /// Destination wallet receiving the transfer
+    pub destination: UncheckedAccount<'info>,
+
+    /// KYC attestation for source
+    #[account(
+        seeds = [b"kyc_attestation", source.key().as_ref()],
+        bump = source_kyc.bump
+    )]
+    pub source_kyc: Account<'info, KycAttestation>,
+
+    /// KYC attestation for destination
+    #[account(
+        seeds = [b"kyc_attestation", destination.key().as_ref()],
+        bump = dest_kyc.bump
+    )]
+    pub dest_kyc: Account<'info, KycAttestation>,
+
+    /// Token-level spending state for source
+    #[account(
+        mut,
+        seeds = [b"token_state", source.key().as_ref()],
+        bump = source_token_state.bump
+    )]
+    pub source_token_state: Account<'info, TokenLimitState>,
+
+    /// Travel Rule data (optional, required if amount >= 3000 USDC)
+    #[account(
+        seeds = [b"travel_rule", source.key().as_ref(), destination.key().as_ref()],
+        bump = travel_rule_data.bump
+    )]
+    pub travel_rule_data: Account<'info, TravelRuleData>,
+}
+
+#[derive(Accounts)]
+pub struct CreateKycAttestation<'info> {
+    /// Subject wallet being attested
+    pub subject: UncheckedAccount<'info>,
+
+    /// Compliance provider (signer)
+    pub provider: Signer<'info>,
+
+    /// KYC attestation account
+    #[account(
+        init,
+        payer = provider,
+        space = KycAttestation::SIZE,
+        seeds = [b"kyc_attestation", subject.key().as_ref()],
+        bump
+    )]
+    pub kyc_attestation: Account<'info, KycAttestation>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateKycAttestation<'info> {
+    /// Compliance provider (signer) — must match original provider
+    pub provider: Signer<'info>,
+
+    /// KYC attestation to update
+    #[account(
+        mut,
+        seeds = [b"kyc_attestation", kyc_attestation.wallet.as_ref()],
+        bump = kyc_attestation.bump,
+        constraint = kyc_attestation.provider == provider.key().to_string() @ BastionError::Unauthorized
+    )]
+    pub kyc_attestation: Account<'info, KycAttestation>,
+}
+
+#[derive(Accounts)]
+pub struct SubmitTravelRuleData<'info> {
+    /// Originating wallet
+    pub originator: UncheckedAccount<'info>,
+
+    /// Beneficiary wallet
+    pub beneficiary: UncheckedAccount<'info>,
+
+    /// Compliance submitter (signer)
+    pub submitter: Signer<'info>,
+
+    /// Travel Rule data account
+    #[account(
+        init,
+        payer = submitter,
+        space = TravelRuleData::SIZE,
+        seeds = [b"travel_rule", originator.key().as_ref(), beneficiary.key().as_ref()],
+        bump
+    )]
+    pub travel_rule_data: Account<'info, TravelRuleData>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeTokenLimit<'info> {
+    /// Wallet to set spending limit for
+    pub wallet: UncheckedAccount<'info>,
+
+    /// Admin (signer)
+    pub admin: Signer<'info>,
+
+    /// Token limit state
+    #[account(
+        init,
+        payer = admin,
+        space = TokenLimitState::SIZE,
+        seeds = [b"token_state", wallet.key().as_ref()],
+        bump
+    )]
+    pub token_state: Account<'info, TokenLimitState>,
+
+    pub system_program: Program<'info, System>,
+}
+
+// ============================================================================
 // State
 // ============================================================================
 
@@ -638,6 +972,78 @@ impl Withdrawal {
         + 1    // needs_approval
         + 8    // transaction_id
         + 8    // created_at
+        + 1    // bump
+        + 32;  // padding
+}
+
+/// KYC attestation — on-chain proof that a wallet has passed KYC
+#[account]
+pub struct KycAttestation {
+    pub wallet: Pubkey,              // 32 — wallet being attested
+    pub verified: bool,              // 1  — KYC status
+    pub provider: String,            // 4 + 32 — compliance provider name
+    pub verified_at: i64,            // 8  — when KYC was verified
+    pub expiry: i64,                 // 8  — when KYC expires
+    pub bump: u8,                    // 1
+}
+
+impl KycAttestation {
+    pub const SIZE: usize = 8  // discriminator
+        + 32   // wallet
+        + 1    // verified
+        + 4 + 32  // provider (String: 4 byte len + max 32 chars)
+        + 8    // verified_at
+        + 8    // expiry
+        + 1    // bump
+        + 32;  // padding
+}
+
+/// Travel Rule data — originator and beneficiary info for large transfers
+#[account]
+pub struct TravelRuleData {
+    pub originator: Pubkey,          // 32 — sending wallet
+    pub originator_name: String,     // 4 + 128 — originator legal name
+    pub originator_address: String,  // 4 + 256 — originator address
+    pub beneficiary: Pubkey,         // 32 — receiving wallet
+    pub beneficiary_name: String,    // 4 + 128 — beneficiary legal name
+    pub beneficiary_address: String, // 4 + 256 — beneficiary address
+    pub tx_reference: String,        // 4 + 64  — unique transaction reference
+    pub is_filled: bool,             // 1  — whether data is complete
+    pub submitted_at: i64,           // 8  — when submitted
+    pub bump: u8,                    // 1
+}
+
+impl TravelRuleData {
+    pub const SIZE: usize = 8  // discriminator
+        + 32   // originator
+        + 4 + 128  // originator_name
+        + 4 + 256  // originator_address
+        + 32   // beneficiary
+        + 4 + 128  // beneficiary_name
+        + 4 + 256  // beneficiary_address
+        + 4 + 64   // tx_reference
+        + 1    // is_filled
+        + 8    // submitted_at
+        + 1    // bump
+        + 32;  // padding
+}
+
+/// Token-level spending state — tracks daily transfer limits at the token level
+#[account]
+pub struct TokenLimitState {
+    pub wallet: Pubkey,              // 32 — wallet owning this state
+    pub daily_limit: u64,            // 8  — max daily transfer amount
+    pub daily_transferred: u64,      // 8  — amount transferred today
+    pub last_transfer_reset: i64,    // 8  — timestamp of last daily reset
+    pub bump: u8,                    // 1
+}
+
+impl TokenLimitState {
+    pub const SIZE: usize = 8  // discriminator
+        + 32   // wallet
+        + 8    // daily_limit
+        + 8    // daily_transferred
+        + 8    // last_transfer_reset
         + 1    // bump
         + 32;  // padding
 }
@@ -743,6 +1149,56 @@ pub struct VaultUnpaused {
 }
 
 // ============================================================================
+// Transfer Hook Compliance Events
+// ============================================================================
+
+#[event]
+pub struct TransferHookTriggered {
+    pub source: Pubkey,
+    pub destination: Pubkey,
+    pub amount: u64,
+    pub source_kyc_provider: String,
+    pub dest_kyc_provider: String,
+    pub travel_rule_applies: bool,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct KycAttestationCreated {
+    pub wallet: Pubkey,
+    pub provider: String,
+    pub verified_at: i64,
+    pub expiry: i64,
+    pub created_by: Pubkey,
+}
+
+#[event]
+pub struct KycAttestationUpdated {
+    pub wallet: Pubkey,
+    pub provider: String,
+    pub new_expiry: i64,
+    pub updated_by: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct TravelRuleDataSubmitted {
+    pub originator: Pubkey,
+    pub beneficiary: Pubkey,
+    pub tx_reference: String,
+    pub submitted_by: Pubkey,
+    pub timestamp: i64,
+}
+
+#[event]
+pub struct TokenLimitInitialized {
+    pub wallet: Pubkey,
+    pub daily_limit: u64,
+    pub initialized_by: Pubkey,
+    pub timestamp: i64,
+}
+
+// ============================================================================
 // Errors
 // ============================================================================
 
@@ -783,4 +1239,20 @@ pub enum BastionError {
 
     #[msg("Invalid approval threshold (1-10)")]
     InvalidThreshold,
+
+    // Token-2022 Transfer Hook errors
+    #[msg("KYC attestation wallet mismatch")]
+    KycMismatch,
+
+    #[msg("KYC attestation has expired")]
+    KycExpired,
+
+    #[msg("Travel Rule data missing for large transfer")]
+    TravelRuleDataMissing,
+
+    #[msg("Travel Rule data wallet mismatch")]
+    TravelRuleMismatch,
+
+    #[msg("Invalid KYC expiry duration")]
+    InvalidKycExpiry,
 }
