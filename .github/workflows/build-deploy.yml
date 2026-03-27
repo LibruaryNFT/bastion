@@ -16,8 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust 1.79.0
+        uses: dtolnay/rust-toolchain@1.79.0
 
       - name: Install Solana CLI
         run: |
@@ -31,11 +31,17 @@ jobs:
           solana --version
           rustc --version
 
+      - name: Generate compatible Cargo.lock
+        run: |
+          cd programs/bastion
+          cargo generate-lockfile
+          echo "Lock file generated"
+
       - name: Build SBF Program
         run: |
           cd programs/bastion
           cargo build-sbf --manifest-path Cargo.toml
-          ls -la ../../target/deploy/ || ls -la ../../target/sbf-solana-solana/release/
+          ls -la ../../target/deploy/
 
       - name: Upload Program Artifact
         uses: actions/upload-artifact@v4
@@ -43,5 +49,4 @@ jobs:
           name: bastion-program
           path: |
             target/deploy/*.so
-            target/sbf-solana-solana/release/*.so
           retention-days: 30
