@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useDemo } from "@/app/page";
+import { PublicKey } from "@solana/web3.js";
+import { bastionClient } from "@/lib/program";
 
 interface TravelRuleData {
   originatorName: string;
@@ -10,6 +14,19 @@ interface TravelRuleData {
   beneficiaryAddress: string;
   beneficiaryInstitution: string;
   transmissionStatus: "pending" | "transmitting" | "ack_received" | "failed";
+}
+
+interface WithdrawalPanelProps {
+  vaultAddress: PublicKey;
+}
+
+interface TransactionRecord {
+  id: number;
+  amount: number;
+  recipient: string;
+  status: "executed" | "rejected" | "pending";
+  time: string;
+  signature?: string;
 }
 
 const MOCK_PENDING = [
@@ -39,13 +56,17 @@ const MOCK_PENDING = [
   },
 ];
 
-const MOCK_HISTORY = [
+const MOCK_HISTORY: TransactionRecord[] = [
   { id: 46, amount: 15_000, recipient: "0xDEf...5678", status: "executed", time: "5h ago" },
   { id: 43, amount: 200_000, recipient: "0x123...4567", status: "executed", time: "3d ago" },
   { id: 40, amount: 50_000, recipient: "0xABC...DEF0", status: "rejected", time: "5d ago" },
 ];
 
-export function WithdrawalPanel() {
+export function WithdrawalPanel({ vaultAddress }: WithdrawalPanelProps) {
+  const { connected, publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
+
   const [showNewRequest, setShowNewRequest] = useState(false);
   const [newRequest, setNewRequest] = useState({ recipient: "", amount: "", memo: "" });
   const [travelRuleData, setTravelRuleData] = useState<TravelRuleData>({
@@ -58,11 +79,171 @@ export function WithdrawalPanel() {
     transmissionStatus: "pending",
   });
   const [showTravelRuleForm, setShowTravelRuleForm] = useState(false);
+  const [transactionHistory, setTransactionHistory] = useState<TransactionRecord[]>(MOCK_HISTORY);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const needsTravelRule = Number(newRequest.amount) >= 3000;
 
+
+  // Handle request withdrawal
+  const handleRequestWithdrawal = async () => {
+    if (isDemo) {
+      // Demo mode: show mock signature
+      setSuccessMessage("✓ Demo withdrawal request created (mock signature: 3x4Kp9...demo)");
+      setTimeout(() => setSuccessMessage(""), 5000);
+      return;
+    }
+
+    if (!connected || !publicKey) {
+      setErrorMessage("Connect wallet to submit on-chain transactions");
+      return;
+    }
+
+    if (!newRequest.recipient || !newRequest.amount || !newRequest.memo) {
+      setErrorMessage("Fill all fields");
+      return;
+    }
+
+    if (needsTravelRule && travelRuleData.transmissionStatus !== "ack_received") {
+      setErrorMessage("Complete Travel Rule transmission first");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const amount = Math.floor(Number(newRequest.amount) * 1_000_000); // Convert to smallest unit
+      const recipient = new PublicKey(newRequest.recipient);
+
+      const tx = await bastionClient.buildRequestWithdrawalTx(
+        vaultAddress,
+        publicKey,
+        recipient,
+        amount,
+        newRequest.memo
+      );
+
+      const latestBlockhash = await connection.getLatestBlockhash();
+      tx.recentBlockhash = latestBlockhash.blockhash;
+      tx.feePayer = publicKey;
+
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      });
+
+      setSuccessMessage(`✓ Withdrawal request submitted!\nSignature: ${signature.slice(0, 20)}...`);
+
+      // Add to history
+      const newRecord: TransactionRecord = {
+        id: Math.max(...transactionHistory.map((h) => h.id), 0) + 1,
+        amount: Number(newRequest.amount),
+        recipient: newRequest.recipient,
+        status: "pending",
+        time: "just now",
+        signature,
+      };
+      setTransactionHistory([newRecord, ...transactionHistory]);
+
+      // Reset form
+      setNewRequest({ recipient: "", amount: "", memo: "" });
+      setShowNewRequest(false);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err: any) {
+      setErrorMessage(`Transaction failed: ${err.message || String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle approve
+  const handleApprove = async (withdrawalId: number) => {
+    if (isDemo) {
+      setSuccessMessage(`✓ Demo approval submitted (mock signature: 5x8Np2...demo)`);
+      setTimeout(() => setSuccessMessage(""), 5000);
+      return;
+    }
+
+    if (!connected || !publicKey) {
+      setErrorMessage("Connect wallet to submit on-chain transactions");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      // Derive withdrawal PDA from vault + transaction ID
+      const [withdrawalAddress] = await bastionClient.getWithdrawalPDA(vaultAddress, withdrawalId);
+
+      const tx = await bastionClient.buildApproveWithdrawalTx(
+        vaultAddress,
+        publicKey,
+        withdrawalAddress
+      );
+
+      const latestBlockhash = await connection.getLatestBlockhash();
+      tx.recentBlockhash = latestBlockhash.blockhash;
+      tx.feePayer = publicKey;
+
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      });
+
+      setSuccessMessage(`✓ Withdrawal approved!\nSignature: ${signature.slice(0, 20)}...\nView on Explorer: https://explorer.solana.com/tx/${signature}?cluster=devnet`);
+
+      const newRecord: TransactionRecord = {
+        id: withdrawalId,
+        amount: 0,
+        recipient: "",
+        status: "executed",
+        time: "just now",
+        signature,
+      };
+      setTransactionHistory([newRecord, ...transactionHistory]);
+      setTimeout(() => setSuccessMessage(""), 4000);
+    } catch (err: any) {
+      setErrorMessage(`Approval failed: ${err.message || String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
+      {/* Error Banner */}
+      {errorMessage && (
+        <div className="mb-4 p-4 rounded-lg" style={{ background: "rgba(239,68,68,0.1)", color: "var(--danger)" }}>
+          <p className="text-sm font-medium">{errorMessage}</p>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {successMessage && (
+        <div className="mb-4 p-4 rounded-lg" style={{ background: "rgba(34,197,94,0.1)", color: "var(--success)" }}>
+          <p className="text-sm font-medium whitespace-pre-wrap">{successMessage}</p>
+        </div>
+      )}
+
+      {/* Wallet Connection Status */}
+      {!isDemo && !connected && (
+        <div className="mb-4 p-4 rounded-lg border" style={{ borderColor: "var(--warning)", background: "rgba(255,167,38,0.1)" }}>
+          <p className="text-sm" style={{ color: "var(--warning)" }}>
+            ⚠ Connect wallet to submit on-chain transactions
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold">Withdrawals</h1>
@@ -74,6 +255,7 @@ export function WithdrawalPanel() {
           onClick={() => setShowNewRequest(true)}
           className="px-4 py-2 rounded-lg text-sm font-semibold"
           style={{ background: "var(--accent)", color: "#000" }}
+          disabled={loading}
         >
           + New Withdrawal Request
         </button>
@@ -110,14 +292,17 @@ export function WithdrawalPanel() {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    className="px-4 py-2 rounded-lg text-xs font-semibold"
+                    onClick={() => handleApprove(w.id)}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold disabled:opacity-50"
                     style={{ background: "var(--accent)", color: "#000" }}
                   >
-                    Approve
+                    {loading ? "Processing..." : "Approve"}
                   </button>
                   <button
-                    className="px-4 py-2 rounded-lg text-xs font-semibold border"
+                    className="px-4 py-2 rounded-lg text-xs font-semibold border disabled:opacity-50"
                     style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+                    disabled={loading}
                   >
                     Reject
                   </button>
@@ -161,37 +346,60 @@ export function WithdrawalPanel() {
         </div>
       </div>
 
-      {/* History */}
+      {/* Transaction History */}
       <div>
-        <h2 className="text-sm font-semibold mb-3">Withdrawal History</h2>
+        <h2 className="text-sm font-semibold mb-3">Transaction History</h2>
         <div
           className="rounded-xl border overflow-hidden"
           style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
         >
-          {MOCK_HISTORY.map((w) => (
-            <div
-              key={w.id}
-              className="px-5 py-3 flex items-center justify-between text-sm"
-              style={{ borderBottom: "1px solid var(--border)" }}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg">↑</span>
-                <div>
-                  <p className="font-medium text-xs">${w.amount.toLocaleString()} to {w.recipient}</p>
-                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{w.time}</p>
-                </div>
-              </div>
-              <span
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  background: w.status === "executed" ? "var(--accent-dim)" : "rgba(255,71,87,0.15)",
-                  color: w.status === "executed" ? "var(--accent)" : "var(--danger)",
-                }}
-              >
-                {w.status}
-              </span>
+          {transactionHistory.length === 0 ? (
+            <div className="px-5 py-6 text-center">
+              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                No transactions yet
+              </p>
             </div>
-          ))}
+          ) : (
+            transactionHistory.map((w) => (
+              <div
+                key={w.id}
+                className="px-5 py-4 border-b last:border-b-0"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg">↑</span>
+                    <div>
+                      <p className="font-medium text-xs">${w.amount.toLocaleString()} to {w.recipient}</p>
+                      <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{w.time}</p>
+                    </div>
+                  </div>
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full"
+                    style={{
+                      background: w.status === "executed" ? "var(--accent-dim)" : w.status === "pending" ? "rgba(255,167,38,0.15)" : "rgba(255,71,87,0.15)",
+                      color: w.status === "executed" ? "var(--accent)" : w.status === "pending" ? "var(--warning)" : "var(--danger)",
+                    }}
+                  >
+                    {w.status}
+                  </span>
+                </div>
+                {w.signature && (
+                  <div className="mt-2 ml-11">
+                    <a
+                      href={`https://explorer.solana.com/tx/${w.signature}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono hover:underline"
+                      style={{ color: "var(--accent)" }}
+                    >
+                      {w.signature.slice(0, 20)}... (View on Explorer)
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -366,18 +574,27 @@ export function WithdrawalPanel() {
                 onClick={() => {
                   setShowNewRequest(false);
                   setShowTravelRuleForm(false);
+                  setErrorMessage("");
                 }}
-                className="flex-1 py-2.5 rounded-lg text-sm border"
+                className="flex-1 py-2.5 rounded-lg text-sm border disabled:opacity-50"
                 style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+                disabled={loading}
               >
                 Cancel
               </button>
               <button
-                disabled={needsTravelRule && travelRuleData.transmissionStatus !== "ack_received"}
+                onClick={handleRequestWithdrawal}
+                disabled={
+                  loading ||
+                  !newRequest.recipient ||
+                  !newRequest.amount ||
+                  !newRequest.memo ||
+                  (needsTravelRule && travelRuleData.transmissionStatus !== "ack_received")
+                }
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-50"
                 style={{ background: "var(--accent)", color: "#000" }}
               >
-                Submit Request
+                {loading ? "Processing..." : "Submit Request"}
               </button>
             </div>
           </div>

@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { bastionClient, type Member } from "@/lib/program";
+import { useDemo } from "@/app/page";
+import BN from "bn.js";
 
 // Mock data — in production, fetched from on-chain via @solana/web3.js
 const MOCK_VAULT = {
@@ -25,12 +30,104 @@ const MOCK_RECENT_TXS = [
   { id: 42, type: "member_added", wallet: "0xNew...User", role: "Operator", time: "1d ago", status: "added" },
 ];
 
-export function VaultDashboard() {
-  const vault = MOCK_VAULT;
+interface VaultDashboardProps {
+  vaultAddress: PublicKey;
+}
+
+export function VaultDashboard({ vaultAddress }: VaultDashboardProps) {
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
+  const [vault, setVault] = useState(MOCK_VAULT);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [vaultNotFound, setVaultNotFound] = useState(false);
+
+  useEffect(() => {
+    // If in demo mode or no wallet connected, use mock data
+    if (isDemo || !publicKey) {
+      setVault(MOCK_VAULT);
+      setMembers([]);
+      setVaultNotFound(false);
+      return;
+    }
+
+    const fetchVaultData = async () => {
+      setLoading(true);
+      try {
+        // Try to fetch vault for connected wallet
+        // Default vault name for demo: "Treasury Operations"
+        const vaultData = await bastionClient.fetchVault(publicKey, "Treasury Operations");
+
+        if (!vaultData) {
+          setVaultNotFound(true);
+          setVault(MOCK_VAULT);
+          setMembers([]);
+        } else {
+          setVaultNotFound(false);
+          // Convert on-chain data to display format
+          const displayVault = {
+            name: vaultData.name,
+            totalDeposited: vaultData.totalDeposited.toNumber(),
+            totalWithdrawn: vaultData.totalWithdrawn.toNumber(),
+            memberCount: vaultData.memberCount,
+            transactionCount: vaultData.transactionCount.toNumber(),
+            dailyLimit: vaultData.dailyLimit.toNumber(),
+            approvalThreshold: vaultData.approvalThreshold,
+            stablecoin: "USDC", // Infer from on-chain if available
+            paused: vaultData.paused,
+            createdAt: new Date(vaultData.createdAt.toNumber() * 1000).toISOString(),
+          };
+          setVault(displayVault);
+
+          // Fetch vault members
+          const [vaultPDA] = await bastionClient.getVaultPDA(publicKey, "Treasury Operations");
+          const vaultMembers = await bastionClient.fetchVaultMembers(new PublicKey(vaultPDA));
+          setMembers(vaultMembers || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch vault data:", error);
+        // Fall back to mock data on error
+        setVault(MOCK_VAULT);
+        setMembers([]);
+        setVaultNotFound(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVaultData();
+  }, [publicKey, isDemo]);
+
   const balance = vault.totalDeposited - vault.totalWithdrawn;
   const pendingApprovals = 2; // From MOCK_RECENT_TXS: tx 45 has 1/2, so 2 pending
   const dailySpent = 25_000; // Sum of Alice (12K) + Bob (5K) + David (8K)
   const dailyUsagePercent = Math.round((dailySpent / vault.dailyLimit) * 100);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p style={{ color: "var(--text-secondary)" }}>Loading vault data...</p>
+      </div>
+    );
+  }
+
+  if (vaultNotFound && !isDemo) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <p className="text-lg font-semibold mb-2">No vault found</p>
+        <p style={{ color: "var(--text-secondary)" }} className="mb-6">
+          Connect your wallet and create a vault to get started.
+        </p>
+        <button
+          className="px-4 py-2 rounded-lg font-semibold text-sm"
+          style={{ background: "var(--accent)", color: "#000" }}
+        >
+          Create Vault
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>

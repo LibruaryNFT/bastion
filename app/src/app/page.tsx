@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, createContext, useContext } from "react";
+import { useState, createContext, useContext, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Header } from "@/components/Header";
 import { KycGate } from "@/components/KycGate";
@@ -11,6 +12,8 @@ import { MemberManager } from "@/components/MemberManager";
 import { WithdrawalPanel } from "@/components/WithdrawalPanel";
 import { AuditTrail } from "@/components/AuditTrail";
 import { ComplianceReport } from "@/components/ComplianceReport";
+import { bastionClient } from "@/lib/program";
+import { getProgramStatus } from "@/lib/solana";
 
 // Demo mode context — lets judges explore the full app without a wallet
 export const DemoContext = createContext<{ isDemo: boolean; demoWallet: string }>({
@@ -29,18 +32,50 @@ export default function Home() {
   const [kycVerified, setKycVerified] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [vaultCreated, setVaultCreated] = useState(false);
+  const [vaultAddress, setVaultAddress] = useState<PublicKey | null>(null);
+  const [vaultLoading, setVaultLoading] = useState(false);
 
   const isConnected = connected || demoMode;
   const walletAddress = demoMode ? DEMO_WALLET : publicKey?.toBase58() || "";
+
+  // Derive vaultAddress PDA when vault is created
+  useEffect(() => {
+    if (!vaultCreated || !publicKey) {
+      setVaultAddress(null);
+      return;
+    }
+
+    const deriveVault = async () => {
+      setVaultLoading(true);
+      try {
+        const [vault] = await bastionClient.getVaultPDA(publicKey, "Treasury Operations");
+        setVaultAddress(vault);
+      } catch (error) {
+        console.error("Failed to derive vault PDA:", error);
+        setVaultAddress(null);
+      } finally {
+        setVaultLoading(false);
+      }
+    };
+
+    deriveVault();
+  }, [vaultCreated, publicKey]);
 
   if (!isConnected) {
     return <LandingPage onDemoMode={() => { setDemoMode(true); setKycVerified(true); setVaultCreated(true); }} />;
   }
 
   if (!kycVerified) {
+    // For KYC gate, derive a temporary vault address for the KYC component
+    // In production, this would be created during vault initialization
+    const tempVaultAddress = publicKey ? new PublicKey("11111111111111111111111111111112") : null;
+
     return (
       <DemoContext.Provider value={{ isDemo: demoMode, demoWallet: walletAddress }}>
-        <KycGate onVerified={() => setKycVerified(true)} />
+        <KycGate
+          vaultAddress={tempVaultAddress || publicKey || new PublicKey("11111111111111111111111111111112")}
+          onVerified={() => setKycVerified(true)}
+        />
       </DemoContext.Provider>
     );
   }
@@ -108,11 +143,23 @@ export default function Home() {
 
           {/* Main Content */}
           <main className="flex-1 p-8">
-            {activeTab === "dashboard" && <VaultDashboard />}
-            {activeTab === "members" && <MemberManager />}
-            {activeTab === "withdrawals" && <WithdrawalPanel />}
-            {activeTab === "audit" && <AuditTrail />}
-            {activeTab === "compliance" && <ComplianceReport />}
+            {vaultLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <p style={{ color: "var(--text-secondary)" }}>Loading vault data...</p>
+              </div>
+            ) : vaultAddress ? (
+              <>
+                {activeTab === "dashboard" && <VaultDashboard vaultAddress={vaultAddress} />}
+                {activeTab === "members" && <MemberManager vaultAddress={vaultAddress} />}
+                {activeTab === "withdrawals" && <WithdrawalPanel vaultAddress={vaultAddress} />}
+                {activeTab === "audit" && <AuditTrail vaultAddress={vaultAddress} />}
+                {activeTab === "compliance" && <ComplianceReport vaultAddress={vaultAddress} />}
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-64">
+                <p style={{ color: "var(--text-secondary)" }}>Unable to load vault address</p>
+              </div>
+            )}
           </main>
         </div>
       </div>
@@ -121,6 +168,28 @@ export default function Home() {
 }
 
 function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
+  const [programStatus, setProgramStatus] = useState({ live: false, slot: 0, balance: 0 });
+  const [statusLoading, setStatusLoading] = useState(true);
+
+  // Fetch program status on mount
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const status = await getProgramStatus();
+        setProgramStatus(status);
+      } catch (error) {
+        console.error("Failed to fetch program status:", error);
+      } finally {
+        setStatusLoading(false);
+      }
+    };
+
+    fetchStatus();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const features = [
     { icon: "01", title: "KYC / KYB Onboarding", desc: "Identity verification and business due diligence before vault access. Integrates with institutional-grade compliance providers.", tag: "Compliance" },
     { icon: "02", title: "Role-Based Access Control", desc: "Granular permissions — Admin, Manager, Operator, Viewer. Each role has defined capabilities enforced on-chain.", tag: "Governance" },
@@ -131,7 +200,7 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
   ];
 
   const stats = [
-    { value: "$2.27M", label: "Total Value Secured", sub: "across active vaults" },
+    { value: programStatus.balance.toFixed(2), label: "Program Balance", sub: `${programStatus.balance.toFixed(2)} SOL on devnet` },
     { value: "47", label: "Transactions Processed", sub: "with full audit trail" },
     { value: "100%", label: "Compliance Rate", sub: "KYC / KYT / AML / Travel Rule" },
   ];
@@ -153,7 +222,7 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
             target="_blank" rel="noopener noreferrer"
             className="text-xs font-medium transition-colors hover:text-[var(--accent)]"
             style={{ color: "var(--text-secondary)" }}>
-            Devnet Program
+            Verify On-Chain
           </a>
           <a href="https://github.com/LibruaryNFT/bastion" target="_blank" rel="noopener noreferrer"
             className="text-xs font-medium transition-colors hover:text-[var(--accent)]"
@@ -168,8 +237,17 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
         <div className="animate-fade-up">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-8 glass-card"
             style={{ color: "var(--accent-light)" }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--success)" }} />
-            Live on Solana Devnet &middot; Token-2022 &middot; Anchor Framework
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: programStatus.live ? "var(--success)" : "#ef4444" }} />
+            {statusLoading ? (
+              <>Program Status: Loading...</>
+            ) : programStatus.live ? (
+              <>
+                Program Live | Slot: {programStatus.slot.toLocaleString()} | Balance: {programStatus.balance.toFixed(2)} SOL
+              </>
+            ) : (
+              <>Program Status: Offline</>
+            )}
+            &middot; Token-2022 &middot; Anchor Framework
           </div>
         </div>
 

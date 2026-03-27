@@ -1,9 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { bastionClient, type Member } from "@/lib/program";
+import { useDemo } from "@/app/page";
 
-export function ComplianceReport() {
+interface ComplianceReportProps {
+  vaultAddress: PublicKey;
+}
+
+export function ComplianceReport({ vaultAddress }: ComplianceReportProps) {
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
   const [expandedMetadata, setExpandedMetadata] = useState<string | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [kycCoverage, setKycCoverage] = useState(100);
+
+  useEffect(() => {
+    if (isDemo || !publicKey) {
+      setMembers([]);
+      setKycCoverage(100);
+      return;
+    }
+
+    const fetchComplianceData = async () => {
+      setLoading(true);
+      try {
+        const vaultMembers = await bastionClient.fetchVaultMembers(vaultAddress);
+        if (vaultMembers && vaultMembers.length > 0) {
+          setMembers(vaultMembers);
+          const verifiedCount = vaultMembers.filter((m) => m.kycVerified).length;
+          setKycCoverage(Math.round((verifiedCount / vaultMembers.length) * 100));
+        }
+      } catch (error) {
+        console.error("Failed to fetch compliance data:", error);
+        setMembers([]);
+        setKycCoverage(100);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchComplianceData();
+  }, [vaultAddress, publicKey, isDemo]);
 
   // Compliance methodology breakdown
   const complianceBreakdown = [
@@ -126,7 +168,7 @@ export function ComplianceReport() {
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
           { label: "Vault Risk Rating", value: "A+", color: "var(--success)", detail: "Excellent compliance posture" },
-          { label: "KYC Verified Members", value: "5/5", color: "var(--accent)", detail: "100% coverage" },
+          { label: "KYC Verified Members", value: `${members.filter((m) => m.kycVerified).length}/${members.length || 5}`, color: "var(--accent)", detail: `${kycCoverage}% coverage` },
           { label: "Active AML Alerts", value: "0", color: "var(--accent)", detail: "No flags this period" },
           { label: "Travel Rule Transfers", value: "3", color: "var(--accent)", detail: "All compliant" },
         ].map((stat, i) => (

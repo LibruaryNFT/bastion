@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { bastionClient, type Withdrawal } from "@/lib/program";
+import { useDemo } from "@/app/page";
 
 interface AuditEntry {
   id: number;
@@ -41,13 +45,75 @@ const ACTION_COLORS: Record<string, string> = {
   VAULT_PAUSED: "var(--danger)",
 };
 
-export function AuditTrail() {
+interface AuditTrailProps {
+  vaultAddress: PublicKey;
+}
+
+export function AuditTrail({ vaultAddress }: AuditTrailProps) {
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
   const [filter, setFilter] = useState("ALL");
   const [expandedEntry, setExpandedEntry] = useState<number | null>(null);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>(MOCK_AUDIT_LOG);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isDemo || !publicKey) {
+      setAuditLog(MOCK_AUDIT_LOG);
+      return;
+    }
+
+    const fetchAuditLog = async () => {
+      setLoading(true);
+      try {
+        // Fetch vault to get transaction count
+        const vault = await bastionClient.fetchVault(publicKey, "Treasury Operations");
+        if (!vault) {
+          setAuditLog(MOCK_AUDIT_LOG);
+          return;
+        }
+
+        // Build audit log from on-chain withdrawals
+        const auditEntries: AuditEntry[] = [];
+        for (let txId = 0; txId < vault.transactionCount.toNumber(); txId++) {
+          const withdrawal = await bastionClient.fetchWithdrawal(vaultAddress, txId);
+          if (withdrawal) {
+            auditEntries.push({
+              id: txId,
+              action: "WITHDRAWAL_" + (withdrawal.status === 0 ? "REQUESTED" : "EXECUTED"),
+              actor: "On-chain Member",
+              details: `$${withdrawal.amount.toNumber()} to ${withdrawal.recipient.toBase58().slice(0, 8)}...`,
+              timestamp: new Date(withdrawal.createdAt.toNumber() * 1000).toISOString(),
+              txHash: withdrawal.transactionId.toString(),
+            });
+          }
+        }
+
+        // Add to mock log
+        setAuditLog([...auditEntries, ...MOCK_AUDIT_LOG]);
+      } catch (error) {
+        console.error("Failed to fetch audit log:", error);
+        setAuditLog(MOCK_AUDIT_LOG);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAuditLog();
+  }, [vaultAddress, publicKey, isDemo]);
 
   const filtered = filter === "ALL"
-    ? MOCK_AUDIT_LOG
-    : MOCK_AUDIT_LOG.filter((e) => e.action.startsWith(filter));
+    ? auditLog
+    : auditLog.filter((e) => e.action.startsWith(filter));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p style={{ color: "var(--text-secondary)" }}>Loading audit trail...</p>
+      </div>
+    );
+  }
 
   return (
     <div>

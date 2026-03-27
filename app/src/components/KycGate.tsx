@@ -1,14 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useState, useEffect } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
+import { bastionClient } from "@/lib/program";
+import { useDemo } from "@/app/page";
 
 interface KycGateProps {
+  vaultAddress: PublicKey;
   onVerified: () => void;
 }
 
-export function KycGate({ onVerified }: KycGateProps) {
-  const { publicKey } = useWallet();
+export function KycGate({ vaultAddress, onVerified }: KycGateProps) {
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
   const [step, setStep] = useState<"info" | "identity" | "webcam" | "verifying" | "done" | "failed">("info");
   const [form, setForm] = useState({
     fullName: "",
@@ -22,6 +28,8 @@ export function KycGate({ onVerified }: KycGateProps) {
   const [verificationSteps, setVerificationSteps] = useState<Record<string, boolean>>({});
   const [kycRef, setKycRef] = useState<string>("");
   const [screeningProvider, setScreeningProvider] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Simulate document upload
   const handleDocumentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,6 +75,39 @@ export function KycGate({ onVerified }: KycGateProps) {
 
     await new Promise((r) => setTimeout(r, 1000));
     setStep("done");
+
+    // Submit KYC verification to on-chain (if not in demo mode)
+    if (!isDemo && publicKey) {
+      setSubmitting(true);
+      try {
+        const tx = await bastionClient.buildVerifyKycTx(
+          vaultAddress,
+          publicKey,
+          publicKey,
+          provider,
+          ref
+        );
+
+        const latestBlockhash = await connection.getLatestBlockhash();
+        tx.recentBlockhash = latestBlockhash.blockhash;
+        tx.feePayer = publicKey;
+
+        const signature = await sendTransaction(tx, connection);
+        await connection.confirmTransaction({
+          signature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        });
+
+        console.log(`KYC verified on-chain: ${signature}`);
+      } catch (error) {
+        console.error("Failed to record KYC on-chain:", error);
+        setSubmitError(error instanceof Error ? error.message : "Failed to record KYC");
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
     setTimeout(onVerified, 2000);
   };
 
@@ -379,8 +420,16 @@ export function KycGate({ onVerified }: KycGateProps) {
               </div>
             </div>
 
+            {submitError && (
+              <div className="p-3 rounded-lg text-xs mb-4" style={{ background: "rgba(255,71,87,0.15)", color: "var(--danger)" }}>
+                {submitError}
+              </div>
+            )}
+
             <div className="p-2 rounded-lg text-xs" style={{ background: "var(--success-dim)", color: "var(--success)" }}>
-              Your wallet is now approved for vault access. Proceeding to dashboard...
+              {submitting
+                ? "Recording KYC verification on-chain..."
+                : "Your wallet is now approved for vault access. Proceeding to dashboard..."}
             </div>
           </div>
         )}

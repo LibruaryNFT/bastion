@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { PublicKey, sendAndConfirmTransaction } from "@solana/web3.js";
+import { bastionClient } from "@/lib/program";
+import { useDemo } from "@/app/page";
 
 const ROLES = ["Admin", "Manager", "Operator", "Viewer"];
 const ROLE_COLORS: Record<string, string> = {
@@ -8,6 +12,14 @@ const ROLE_COLORS: Record<string, string> = {
   Manager: "var(--warning)",
   Operator: "var(--accent)",
   Viewer: "var(--text-secondary)",
+};
+
+// Map role names to numeric values (from contract)
+const ROLE_VALUES: Record<string, number> = {
+  Admin: 0,
+  Manager: 1,
+  Operator: 2,
+  Viewer: 3,
 };
 
 const MOCK_MEMBERS = [
@@ -18,9 +30,136 @@ const MOCK_MEMBERS = [
   { wallet: "2dIV...s9Ok", name: "Eve Thompson", role: "Viewer", kyc: true, kycDate: "2026-03-25", dailySpent: 0, dailyLimit: 0, joined: "Mar 24", lastActivity: "1d ago" },
 ];
 
-export function MemberManager() {
+interface MemberManagerProps {
+  vaultAddress: PublicKey;
+}
+
+export function MemberManager({ vaultAddress }: MemberManagerProps) {
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMember, setNewMember] = useState({ wallet: "", role: "Operator" });
+  const [members, setMembers] = useState(MOCK_MEMBERS);
+  const [loading, setLoading] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isDemo || !publicKey) {
+      setMembers(MOCK_MEMBERS);
+      return;
+    }
+
+    const fetchMembers = async () => {
+      setLoading(true);
+      try {
+        const vaultMembers = await bastionClient.fetchVaultMembers(vaultAddress);
+        if (vaultMembers && vaultMembers.length > 0) {
+          // Format on-chain members for display
+          const formattedMembers = vaultMembers.map((m) => ({
+            wallet: m.wallet.toBase58().slice(0, 4) + "..." + m.wallet.toBase58().slice(-4),
+            name: "On-chain Member", // Would need additional data to get real names
+            role: Object.keys(ROLE_VALUES).find((key) => ROLE_VALUES[key] === m.role) || "Viewer",
+            kyc: m.kycVerified,
+            kycDate: m.kycDate ? new Date(m.kycDate.toNumber() * 1000).toLocaleDateString() : "Pending",
+            dailySpent: 0, // Would need transaction history to calculate
+            dailyLimit: 0,
+            joined: "On-chain",
+            lastActivity: "Unknown",
+          }));
+          setMembers(formattedMembers);
+        }
+      } catch (error) {
+        console.error("Failed to fetch members:", error);
+        setMembers(MOCK_MEMBERS);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMembers();
+  }, [vaultAddress, publicKey, isDemo]);
+
+  const handleAddMember = async () => {
+    if (!newMember.wallet) {
+      setError("Wallet address is required");
+      return;
+    }
+
+    if (isDemo) {
+      setAdding(true);
+      setError(null);
+      setSuccessMessage(null);
+      await new Promise((r) => setTimeout(r, 1500));
+      setAdding(false);
+      setSuccessMessage(`Member ${newMember.wallet.slice(0, 4)}...${newMember.wallet.slice(-4)} added successfully!`);
+      setShowAddModal(false);
+      setNewMember({ wallet: "", role: "Operator" });
+      setTimeout(() => setSuccessMessage(null), 4000);
+      return;
+    }
+
+    if (!publicKey) {
+      setError("Connect wallet to add members");
+      return;
+    }
+
+    setAdding(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const newWalletAddress = new PublicKey(newMember.wallet);
+      const roleValue = ROLE_VALUES[newMember.role];
+
+      const tx = await bastionClient.buildAddMemberTx(
+        vaultAddress,
+        publicKey,
+        newWalletAddress,
+        roleValue
+      );
+
+      const latestBlockhash = await connection.getLatestBlockhash();
+      tx.recentBlockhash = latestBlockhash.blockhash;
+      tx.feePayer = publicKey;
+
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      });
+
+      setSuccessMessage(`Member added successfully! Tx: ${signature.slice(0, 8)}...`);
+      setShowAddModal(false);
+      setNewMember({ wallet: "", role: "Operator" });
+      setTimeout(() => setSuccessMessage(null), 4000);
+
+      // Refresh members list
+      const vaultMembers = await bastionClient.fetchVaultMembers(vaultAddress);
+      if (vaultMembers) {
+        const formattedMembers = vaultMembers.map((m) => ({
+          wallet: m.wallet.toBase58().slice(0, 4) + "..." + m.wallet.toBase58().slice(-4),
+          name: "On-chain Member",
+          role: Object.keys(ROLE_VALUES).find((key) => ROLE_VALUES[key] === m.role) || "Viewer",
+          kyc: m.kycVerified,
+          kycDate: m.kycDate ? new Date(m.kycDate.toNumber() * 1000).toLocaleDateString() : "Pending",
+          dailySpent: 0,
+          dailyLimit: 0,
+          joined: "On-chain",
+          lastActivity: "Unknown",
+        }));
+        setMembers(formattedMembers);
+      }
+    } catch (err) {
+      console.error("Failed to add member:", err);
+      setError(err instanceof Error ? err.message : "Failed to add member");
+    } finally {
+      setAdding(false);
+    }
+  };
 
   return (
     <div>
@@ -56,7 +195,7 @@ export function MemberManager() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_MEMBERS.map((m) => {
+            {members.map((m) => {
               const usagePercent = m.dailyLimit > 0 ? Math.round((m.dailySpent / m.dailyLimit) * 100) : 0;
               return (
                 <tr key={m.wallet} style={{ borderBottom: "1px solid var(--border)" }}>
@@ -120,6 +259,24 @@ export function MemberManager() {
         </table>
       </div>
 
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div
+          className="p-3 rounded-lg text-xs mb-4"
+          style={{ background: "rgba(76,175,80,0.15)", color: "var(--success)" }}
+        >
+          ✓ {successMessage}
+        </div>
+      )}
+      {error && (
+        <div
+          className="p-3 rounded-lg text-xs mb-4"
+          style={{ background: "rgba(255,71,87,0.15)", color: "var(--danger)" }}
+        >
+          {error}
+        </div>
+      )}
+
       {/* Add Member Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
@@ -168,10 +325,12 @@ export function MemberManager() {
                 Cancel
               </button>
               <button
-                className="flex-1 py-2.5 rounded-lg text-sm font-semibold"
+                onClick={handleAddMember}
+                disabled={adding || !newMember.wallet}
+                className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-opacity disabled:opacity-40"
                 style={{ background: "var(--accent)", color: "#000" }}
               >
-                Add Member
+                {adding ? "Adding..." : "Add Member"}
               </button>
             </div>
           </div>

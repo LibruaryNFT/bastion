@@ -1,12 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { sendAndConfirmTransaction } from "@solana/web3.js";
+import { bastionClient } from "@/lib/program";
+import { EXPLORER_URLS } from "@/lib/constants";
+import { useDemo } from "@/app/page";
 
 interface CreateVaultProps {
   onCreated: () => void;
 }
 
 export function CreateVault({ onCreated }: CreateVaultProps) {
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  const { isDemo } = useDemo();
   const [form, setForm] = useState({
     name: "",
     dailyLimit: "100000",
@@ -14,13 +22,68 @@ export function CreateVault({ onCreated }: CreateVaultProps) {
     stablecoin: "USDC",
   });
   const [creating, setCreating] = useState(false);
+  const [txSignature, setTxSignature] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
+    if (!form.name) {
+      setError("Vault name is required");
+      return;
+    }
+
+    if (isDemo) {
+      // Simulate vault creation in demo mode
+      setCreating(true);
+      setError(null);
+      setTxSignature(null);
+      await new Promise((r) => setTimeout(r, 2000));
+      setCreating(false);
+      setTxSignature("DEMO_TX_" + Math.random().toString(36).substring(7));
+      onCreated();
+      return;
+    }
+
+    if (!publicKey) {
+      setError("Connect wallet to create vault on-chain");
+      return;
+    }
+
     setCreating(true);
-    // Simulate vault creation on-chain
-    await new Promise((r) => setTimeout(r, 2000));
-    setCreating(false);
-    onCreated();
+    setError(null);
+    setTxSignature(null);
+
+    try {
+      // Build initialize vault transaction
+      const tx = await bastionClient.buildInitializeVaultTx(
+        publicKey,
+        form.name,
+        parseInt(form.dailyLimit),
+        parseInt(form.approvalThreshold)
+      );
+
+      // Set recent blockhash
+      const latestBlockhash = await connection.getLatestBlockhash();
+      tx.recentBlockhash = latestBlockhash.blockhash;
+      tx.feePayer = publicKey;
+
+      // Sign and send transaction
+      const signature = await sendTransaction(tx, connection);
+
+      // Wait for confirmation
+      await connection.confirmTransaction({
+        signature,
+        blockhash: latestBlockhash.blockhash,
+        lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+      });
+
+      setTxSignature(signature);
+      onCreated();
+    } catch (err) {
+      console.error("Vault creation failed:", err);
+      setError(err instanceof Error ? err.message : "Failed to create vault on-chain");
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -121,9 +184,45 @@ export function CreateVault({ onCreated }: CreateVaultProps) {
           </div>
         </div>
 
+        {error && (
+          <div
+            className="p-3 rounded-lg text-xs"
+            style={{ background: "rgba(255,71,87,0.15)", color: "var(--danger)" }}
+          >
+            {error}
+          </div>
+        )}
+
+        {txSignature && (
+          <div
+            className="p-4 rounded-lg text-xs"
+            style={{ background: "rgba(76,175,80,0.15)" }}
+          >
+            <p className="font-semibold mb-2" style={{ color: "var(--success)" }}>
+              ✓ Vault created successfully!
+            </p>
+            <p style={{ color: "var(--text-secondary)" }} className="mb-2">
+              Transaction signature:
+            </p>
+            <a
+              href={
+                txSignature.startsWith("DEMO_TX_")
+                  ? "#"
+                  : EXPLORER_URLS.devnet.tx(txSignature)
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-mono break-all hover:underline"
+              style={{ color: "var(--accent)" }}
+            >
+              {txSignature}
+            </a>
+          </div>
+        )}
+
         <button
           onClick={handleCreate}
-          disabled={!form.name || creating}
+          disabled={!form.name || creating || !publicKey && !isDemo}
           className="w-full mt-6 py-3 rounded-lg font-semibold text-sm transition-opacity disabled:opacity-40"
           style={{ background: "var(--accent)", color: "#000" }}
         >
