@@ -98,12 +98,12 @@
 **Audio File:** `seg_07_team.mp3`
 
 **Narration:**
-> Built by Justin and Libruary — we've shipped DeFi infrastructure on Flow and Solana. This is what we know how to build.
+> Built by Libruary. We've shipped DeFi infrastructure on Flow and Solana. This is what we know how to build.
 
 **Visual Composition:**
 - Text slide:
-  Built by Justin
-  Libruary — DeFi infrastructure on Flow & Solana
+  Built by Libruary
+  DeFi infrastructure on Flow & Solana
 
 ---
 
