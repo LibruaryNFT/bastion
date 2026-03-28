@@ -47,12 +47,7 @@ export function Header() {
       style={{ borderColor: "var(--border)", background: "var(--bg-secondary)" }}
     >
       <div className="flex items-center gap-3">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
-          style={{ background: "var(--accent)", color: "#000" }}
-        >
-          B
-        </div>
+        <img src="/logo.png" alt="Bastion" className="w-8 h-8 rounded-lg" />
         <span className="font-semibold tracking-tight">Bastion</span>
         <span
           className="text-xs px-2 py-0.5 rounded-full"

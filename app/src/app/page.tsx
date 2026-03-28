@@ -225,8 +225,7 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-8 py-5 max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
-            style={{ background: "var(--accent)", color: "#fff" }}>B</div>
+          <img src="/logo.png" alt="Bastion" className="w-8 h-8 rounded-lg" />
           <span className="font-semibold text-lg tracking-tight">Bastion</span>
         </div>
         <div className="flex items-center gap-6">
