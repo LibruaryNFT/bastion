@@ -254,7 +254,7 @@ function LandingPage({ onDemoMode }: { onDemoMode: () => void }) {
               <>Program Status: Loading...</>
             ) : programStatus.live ? (
               <>
-                Program Live | Slot: {programStatus.slot.toLocaleString()} | Balance: {programStatus.balance.toFixed(2)} SOL
+                Program Live | Slot: {programStatus.slot.toLocaleString()} | Token-2022 · Anchor Framework
               </>
             ) : (
               <>Program Status: Offline</>
