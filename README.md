@@ -15,7 +15,7 @@ Institutions cannot participate in DeFi with existing vault solutions:
 - **No identity verification:** Permissionless vaults accept any wallet. Regulators require KYC/AML at the protocol level.
 - **No spending controls:** Traditional Web2 treasury software enforces per-role limits. DeFi vaults have none.
 - **No audit trail:** Every action in institutional finance is logged and immutable. DeFi offers only transaction hashes.
-- **No Travel Rule compliance:** Transfers >$3K must include originator/beneficiary data (FATF Rec. 16). DeFi has no mechanism.
+- **No Travel Rule compliance:** Transfers >$1K must include originator/beneficiary data (FATF Rec. 16). DeFi has no mechanism.
 - **Compliance bypass risk:** Application-level controls can be circumvented by CLI, DEX, or bridge transfers. Regulators see this as unacceptable.
 
 **Reference:** AMINA Bank (first regulated bank on Solana, 2024) still cannot issue direct DeFi products due to these gaps. Swiss regulatory guidance (FINMA 2019) requires "equivalent controls" to centralized treasury management.
@@ -42,7 +42,7 @@ This is the first time regulatory-grade compliance can be cryptographically prov
 | Role-Based Access | Admin, Manager, Operator, Viewer roles with permission enforcement | ISO 27001 / SOX |
 | Multi-Sig Approvals | M-of-N threshold for withdrawal approval | SOX Sec. 404 |
 | Spending Limits | Per-role configurable daily/weekly caps | Treasury policy best practice |
-| Travel Rule | Originator/beneficiary data collected on transfers ≥$3K | FATF Rec. 16 |
+| Travel Rule | Originator/beneficiary data collected on transfers ≥$1K | FATF Rec. 16 |
 | Compliance Monitoring | Real-time transaction flagging against AML rules | FATF Rec. 6, 10 |
 | Immutable Audit Trail | All actions logged as on-chain events (blockchain = permanent record) | BCBS 239, ISO 27001 |
 | Transfer Hook Enforcement | Token-level compliance interception | Unique to Solana Token-2022 |
@@ -182,7 +182,7 @@ Every token transfer fires:
 │   Verify: daily_transferred + amount ≤ daily_limit
 │   Reset counter if 24h passed
 │
-├─ Travel Rule check (if amount ≥ $3K)
+├─ Travel Rule check (if amount ≥ $1K)
 │   Load TravelRuleData account
 │   Verify: originator + beneficiary data filled
 │   Verify: data matches sender + recipient
@@ -195,7 +195,7 @@ If any check fails → transfer reverted. No second chances.
 
 ### 4. Compliance Officer Workflow
 
-Before a large transfer (≥$3K):
+Before a large transfer (≥$1K):
 
 ```
 Step 1: Officer calls submit_travel_rule_data
@@ -441,7 +441,7 @@ Institutions cannot participate in DeFi without:
 - **Role-based permissions** (CEO, CFO, Treasurer have different access)
 - **Spending controls** (daily limits, approval workflows for large transfers)
 - **Audit trails** (every action logged for compliance reporting)
-- **Travel Rule compliance** (sender/receiver info on transfers >$3K)
+- **Travel Rule compliance** (sender/receiver info on transfers >$1K)
 
 Current DeFi vaults are permissionless by design — great for retail, unusable for institutions.
 
@@ -620,7 +620,7 @@ Input: Transfer amount, source wallet
 #### 4. **Travel Rule Data (Large Transfers)**
 ```
 Input: Transfer amount
-├─ Check if amount >= 3,000,000,000 (3000 USDC at 6 decimals)
+├─ Check if amount >= 1,000,000,000 (1000 USDC at 6 decimals)
 │  └─ If YES:
 │     ├─ Load TravelRuleData account
 │     ├─ Verify: originator matches source wallet ✓
@@ -718,7 +718,7 @@ Result:
 **Instruction:** `submit_travel_rule_data`
 
 ```rust
-// Called by: Compliance officer (before transfer ≥ 3000 USDC)
+// Called by: Compliance officer (before transfer ≥ 1000 USDC)
 // Creates: On-chain record of originator & beneficiary details
 
 Signers:
@@ -758,7 +758,7 @@ Step 1: Compliance officer calls submit_travel_rule_data
 
 Step 2: Alice initiates transfer (via Bastion, CLI, or any app)
   → Token-2022 calls transfer_hook
-  → Hook checks: amount (5000) >= threshold (3000) ✓
+  → Hook checks: amount (5000) >= threshold (1000) ✓
   → Hook loads TravelRuleData for (Alice, Bob)
   → Hook verifies: is_filled = true ✓
   → Transfer approved ✅
@@ -887,7 +887,7 @@ anchor deploy --provider.cluster devnet
 | KYC Gate | Done | On-chain registry, wallet-level verification |
 | KYT (Transaction Monitoring) | Done | Real-time flagging of suspicious patterns |
 | AML Screening | Done | Blocklist check before every transfer |
-| Travel Rule | Done | Originator/beneficiary data on transfers >$3K |
+| Travel Rule | Done | Originator/beneficiary data on transfers >$1K |
 | Multi-Sig Approvals | Done | Configurable threshold per vault |
 | Spending Limits | Done | Per-role daily/weekly caps |
 | Audit Trail | Done | Immutable on-chain log of all actions |
